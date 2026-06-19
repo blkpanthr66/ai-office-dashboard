@@ -49,6 +49,8 @@ export default function TeamPage() {
   const [form, setForm]           = useState(emptyForm);
   const [saving, setSaving]       = useState(false);
   const [deleting, setDeleting]   = useState<string | null>(null);
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'sent' | 'error'>('idle');
+  const [inviteError, setInviteError]   = useState('');
 
   useEffect(() => { fetchMembers(); }, []);
 
@@ -73,12 +75,31 @@ export default function TeamPage() {
   async function save() {
     if (!form.name.trim() || !form.email.trim()) return;
     setSaving(true);
+    setInviteStatus('idle');
+    setInviteError('');
     if (editing) {
       const { data } = await supabase.from('team_members').update(form).eq('id', editing.id).select().single();
       if (data) setMembers(prev => prev.map(m => m.id === editing.id ? data : m));
     } else {
       const { data } = await supabase.from('team_members').insert(form).select().single();
-      if (data) setMembers(prev => [...prev, data]);
+      if (data) {
+        setMembers(prev => [...prev, data]);
+        // Send invite email
+        const res = await fetch('/api/invite-team-member', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: form.name, email: form.email, role: form.role }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setInviteStatus('error');
+          setInviteError(json.error || 'Invite failed');
+          setSaving(false);
+          setShowModal(false);
+          return;
+        }
+        setInviteStatus('sent');
+      }
     }
     setSaving(false);
     setShowModal(false);
@@ -132,6 +153,22 @@ export default function TeamPage() {
           <div className="text-slate-500 text-xs uppercase tracking-wide font-medium">Pending</div>
         </div>
       </div>
+
+      {/* Invite status */}
+      {inviteStatus === 'sent' && (
+        <div className="mb-6 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm rounded-2xl px-5 py-4 flex items-center gap-3">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          Invite sent — they'll receive an email with a secure login link.
+          <button onClick={() => setInviteStatus('idle')} className="ml-auto text-emerald-500 hover:text-emerald-300 text-xs">Dismiss</button>
+        </div>
+      )}
+      {inviteStatus === 'error' && (
+        <div className="mb-6 bg-red-500/10 border border-red-500/20 text-red-300 text-sm rounded-2xl px-5 py-4 flex items-center gap-3">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          Invite failed: {inviteError}
+          <button onClick={() => setInviteStatus('idle')} className="ml-auto text-red-500 hover:text-red-300 text-xs">Dismiss</button>
+        </div>
+      )}
 
       {/* Members list */}
       {loading ? (
@@ -209,9 +246,9 @@ export default function TeamPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <p className="text-cyan-300 text-sm font-medium mb-1">Inviting team members to log in</p>
+            <p className="text-cyan-300 text-sm font-medium mb-1">Automatic invitations</p>
             <p className="text-slate-500 text-xs leading-relaxed">
-              To give a team member dashboard access, go to your <strong className="text-slate-400">Supabase project → Authentication → Users → Invite user</strong> and enter their email. They will receive a login link. Add them here to track their role and status.
+              When you add a new team member, they automatically receive a welcome email plus a secure login link from Supabase. They click the link to set their own password — no temporary passwords needed.
             </p>
           </div>
         </div>
