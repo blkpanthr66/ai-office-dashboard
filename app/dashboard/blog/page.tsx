@@ -22,6 +22,7 @@ type Post = {
 const CATEGORIES = ['AI & Tech', 'SEO & AEO', 'Websites', 'Business Growth', 'General'];
 const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string }> = {
   draft:     { label: 'Draft',     dot: 'bg-amber-400',   text: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20'   },
+  scheduled: { label: 'Scheduled', dot: 'bg-blue-400',    text: 'text-blue-400',    bg: 'bg-blue-500/10 border-blue-500/20'     },
   published: { label: 'Published', dot: 'bg-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
   archived:  { label: 'Archived',  dot: 'bg-slate-500',   text: 'text-slate-500',   bg: 'bg-slate-500/10 border-slate-500/20'   },
 };
@@ -29,6 +30,7 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string; 
 const emptyForm = {
   title: '', slug: '', excerpt: '', content: '', cover_image: '',
   category: 'General', tags: [] as string[], status: 'draft', author: 'PinPoint Local AI',
+  scheduled_at: '',
 };
 
 function slugify(str: string) {
@@ -58,6 +60,8 @@ export default function BlogPage() {
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError]   = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [showSchedule, setShowSchedule] = useState(false);
   const [coverMode, setCoverMode]       = useState<'url' | 'upload'>('url');
   const [uploadingCover, setUploadingCover] = useState(false);
   const [coverError, setCoverError]     = useState('');
@@ -81,19 +85,26 @@ export default function BlogPage() {
     setForm(emptyForm);
     setTagInput('');
     setGenError('');
+    setScheduleDate('');
+    setShowSchedule(false);
     setView('edit');
   }
 
   function openEdit(post: Post) {
     setEditing(post);
+    const scheduledAt = post.status === 'scheduled' && post.published_at
+      ? new Date(post.published_at).toISOString().slice(0, 16) : '';
     setForm({
       title: post.title, slug: post.slug, excerpt: post.excerpt || '',
       content: post.content || '', cover_image: post.cover_image || '',
       category: post.category || 'General', tags: post.tags || [],
       status: post.status, author: post.author || 'PinPoint Local AI',
+      scheduled_at: scheduledAt,
     });
     setTagInput('');
     setGenError('');
+    setScheduleDate(scheduledAt);
+    setShowSchedule(!!scheduledAt);
     setView('edit');
   }
 
@@ -119,15 +130,26 @@ export default function BlogPage() {
     setUploadingCover(false);
   }
 
-  async function save(publishNow = false) {
+  async function save(publishNow = false, scheduleDate = '') {
     if (!form.title.trim()) return;
     setSaving(true);
     const slug = form.slug || slugify(form.title);
-    const status = publishNow ? 'published' : form.status;
-    const published_at = status === 'published' && (!editing || editing.status !== 'published')
-      ? new Date().toISOString() : editing?.published_at || null;
+    let status: string;
+    let published_at: string | null;
 
-    const payload = { ...form, slug, status, published_at, updated_at: new Date().toISOString() };
+    if (publishNow) {
+      status = 'published';
+      published_at = new Date().toISOString();
+    } else if (scheduleDate) {
+      status = 'scheduled';
+      published_at = new Date(scheduleDate).toISOString();
+    } else {
+      status = form.status === 'scheduled' && !form.scheduled_at ? 'draft' : form.status;
+      published_at = editing?.published_at || null;
+    }
+
+    const { scheduled_at: _drop, ...rest } = form;
+    const payload = { ...rest, slug, status, published_at, updated_at: new Date().toISOString() };
 
     if (editing) {
       const { data } = await supabase.from('blog_posts').update(payload).eq('id', editing.id).select().single();
@@ -187,9 +209,13 @@ export default function BlogPage() {
             className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 text-sm font-medium rounded-xl transition-colors disabled:opacity-40">
             {saving ? 'Saving...' : 'Save Draft'}
           </button>
+          <button onClick={() => setShowSchedule(s => !s)} disabled={!form.title.trim()}
+            className={`px-4 py-2.5 border text-sm font-medium rounded-xl transition-colors disabled:opacity-40 ${showSchedule ? 'bg-blue-500/20 border-blue-500/30 text-blue-300' : 'bg-white/5 hover:bg-white/10 border-white/8 text-slate-300'}`}>
+            Schedule
+          </button>
           <button onClick={() => save(true)} disabled={saving || !form.title.trim()}
             className="px-4 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-[#080c14] text-sm font-bold rounded-xl transition-colors disabled:opacity-40">
-            Publish
+            Publish Now
           </button>
         </div>
       </div>
@@ -200,6 +226,34 @@ export default function BlogPage() {
         <Field label="URL Slug" value={form.slug} onChange={v => f('slug', v)} placeholder="how-ai-is-changing-local-seo" />
         <Field label="Excerpt (short summary)" value={form.excerpt} onChange={v => f('excerpt', v)} placeholder="A 1–2 sentence summary shown in blog listings..." />
       </div>
+
+      {/* Schedule panel */}
+      {showSchedule && (
+        <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-5">
+          <div className="flex items-start gap-3">
+            <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <div className="flex-1">
+              <p className="text-blue-300 text-sm font-medium mb-3">Schedule Publication</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <input
+                  type="datetime-local"
+                  value={scheduleDate}
+                  min={new Date().toISOString().slice(0, 16)}
+                  onChange={e => setScheduleDate(e.target.value)}
+                  className="bg-[#080c14] border border-blue-500/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-400/50"
+                />
+                <button
+                  onClick={() => { if (scheduleDate) save(false, scheduleDate); }}
+                  disabled={!scheduleDate || saving || !form.title.trim()}
+                  className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
+                  Confirm Schedule
+                </button>
+              </div>
+              <p className="text-slate-600 text-xs mt-2">The post will automatically go live at this date and time (NZ time).</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI generate */}
       <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-6">
@@ -240,6 +294,7 @@ export default function BlogPage() {
             <select value={form.status} onChange={e => f('status', e.target.value)}
               className="w-full bg-[#080c14] border border-white/8 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-400/50">
               <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
               <option value="published">Published</option>
               <option value="archived">Archived</option>
             </select>
@@ -324,6 +379,12 @@ export default function BlogPage() {
             className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 text-sm font-medium rounded-xl transition-colors disabled:opacity-40">
             Save Draft
           </button>
+          {showSchedule && scheduleDate && (
+            <button onClick={() => save(false, scheduleDate)} disabled={saving || !form.title.trim()}
+              className="px-5 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 text-sm font-semibold rounded-xl transition-colors disabled:opacity-40">
+              Confirm Schedule
+            </button>
+          )}
           <button onClick={() => save(true)} disabled={saving || !form.title.trim()}
             className="px-5 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-[#080c14] text-sm font-bold rounded-xl transition-colors disabled:opacity-40">
             Publish Now
@@ -366,7 +427,7 @@ export default function BlogPage() {
 
       {/* Filter tabs */}
       <div className="flex gap-1 bg-white/5 rounded-xl p-1 w-fit mb-6">
-        {(['all', 'published', 'draft', 'archived'] as const).map(s => (
+        {(['all', 'published', 'scheduled', 'draft', 'archived'] as const).map(s => (
           <button key={s} onClick={() => setFilterStatus(s)}
             className={`text-xs px-4 py-2 rounded-lg capitalize transition-colors ${filterStatus === s ? 'bg-cyan-400/20 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>
             {s}
