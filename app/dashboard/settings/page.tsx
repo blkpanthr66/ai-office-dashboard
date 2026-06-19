@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 type ServiceType = { id: string; name: string };
@@ -10,6 +10,10 @@ export default function SettingsPage() {
   const [loadingTypes, setLoadingTypes] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ added: number; skipped: number } | null>(null);
+  const [importError, setImportError] = useState('');
+  const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchServiceTypes();
@@ -44,6 +48,47 @@ export default function SettingsPage() {
     setTheme(next);
     localStorage.setItem('theme', next);
     document.documentElement.classList.toggle('light-mode', next === 'light');
+  }
+
+  async function importContacts(file: File) {
+    setImporting(true);
+    setImportError('');
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) throw new Error('File appears empty or has no data rows.');
+      const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
+      let added = 0, skipped = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g) || [];
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => {
+          row[h] = (cols[idx] || '').replace(/^"|"$/g, '').trim();
+        });
+        const email = row['email'] || row['e-mail'] || '';
+        const name = row['name'] || row['full name'] || row['contact name'] || '';
+        if (!email && !name) { skipped++; continue; }
+        const contact = {
+          name: name || email,
+          email: email || null,
+          mobile: row['mobile'] || row['phone'] || row['mobile phone'] || null,
+          business_name: row['business name'] || row['company'] || row['organisation'] || null,
+          business_email: row['business email'] || null,
+          business_phone: row['business phone'] || null,
+          website: row['website'] || null,
+          industry: row['industry'] || null,
+          business_address: row['address'] || row['business address'] || null,
+          how_found: row['how found'] || row['source'] || null,
+        };
+        const { error } = await supabase.from('contacts').insert(contact);
+        if (error) skipped++; else added++;
+      }
+      setImportResult({ added, skipped });
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : 'Import failed');
+    }
+    setImporting(false);
   }
 
   async function exportCSV(type: 'contacts' | 'leads') {
@@ -131,6 +176,30 @@ export default function SettingsPage() {
           </button>
         </div>
         <p className="text-slate-700 text-xs mt-3">Downloads a .csv file with all data. Opens in Excel or Google Sheets.</p>
+      </div>
+
+      {/* Import Contacts */}
+      <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-6">
+        <h2 className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-5">Import Contacts</h2>
+        <p className="text-slate-600 text-xs mb-4">Upload a CSV file to bulk import contacts. Columns recognised: Name, Email, Mobile, Business Name, Business Email, Business Phone, Website, Industry, Address, How Found.</p>
+        <input ref={importRef} type="file" accept=".csv" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) importContacts(f); e.target.value = ''; }} />
+        <button onClick={() => importRef.current?.click()} disabled={importing}
+          className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 hover:text-white text-sm font-medium px-4 py-3 rounded-xl transition-colors disabled:opacity-40">
+          {importing ? (
+            <><div className="w-4 h-4 border-2 border-slate-600 border-t-cyan-400 rounded-full animate-spin" />Importing...</>
+          ) : (
+            <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>Choose CSV File</>
+          )}
+        </button>
+        {importResult && (
+          <div className="mt-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs rounded-xl px-4 py-3">
+            Import complete — <strong>{importResult.added}</strong> contacts added, <strong>{importResult.skipped}</strong> skipped.
+          </div>
+        )}
+        {importError && (
+          <div className="mt-3 bg-red-500/10 border border-red-500/20 text-red-300 text-xs rounded-xl px-4 py-3">{importError}</div>
+        )}
       </div>
 
       {/* Custom service types */}
