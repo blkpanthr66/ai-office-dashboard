@@ -150,7 +150,7 @@ export default function ProfilePage() {
       <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-6">
         <h2 className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-5">Brand</h2>
         <div className="flex items-start gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-cyan-500 flex items-center justify-center text-white text-xl font-bold shrink-0 overflow-hidden">
+          <div className="w-16 h-16 rounded-2xl bg-transparent flex items-center justify-center text-white text-xl font-bold shrink-0 overflow-hidden">
             {profile.logo_url ? (
               <img src={profile.logo_url} alt="Logo" className="w-full h-full object-cover" />
             ) : initials}
