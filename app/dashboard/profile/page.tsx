@@ -199,9 +199,6 @@ export default function ProfilePage() {
                   )}
                 </button>
                 <p className="text-slate-700 text-xs mt-1.5">Uploads to Supabase Storage (assets bucket).</p>
-                {profile.logo_url && (
-                  <p className="text-slate-600 text-xs mt-1 truncate">Current: {profile.logo_url}</p>
-                )}
               </div>
             )}
           </div>
