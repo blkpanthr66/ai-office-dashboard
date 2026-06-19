@@ -153,7 +153,7 @@ export default function ProfilePage() {
           <div className="w-16 h-16 rounded-2xl bg-transparent flex items-center justify-center text-white text-xl font-bold shrink-0 overflow-hidden">
             {profile.logo_url ? (
               <img src={profile.logo_url} alt="Logo" className="w-full h-full object-cover" />
-            ) : initials}
+            ) : <span className="text-slate-500 text-xs text-center leading-tight">Add Logo Here</span>}
           </div>
           <div className="flex-1 space-y-3">
             {/* Toggle */}
