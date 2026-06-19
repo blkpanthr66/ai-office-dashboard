@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 type Profile = {
@@ -27,7 +27,6 @@ const empty: Profile = {
 const INDUSTRIES = ['Digital Marketing', 'SEO / AEO', 'Web Design', 'AI & Automation', 'Consulting', 'Social Media', 'Advertising', 'Other'];
 const TIMEZONES  = ['Pacific/Auckland', 'Pacific/Chatham', 'Australia/Sydney', 'Australia/Melbourne', 'UTC'];
 
-// Defined outside component so React never remounts on re-render
 function Field({ label, value, onChange, type = 'text', placeholder = '' }: {
   label: string;
   value: string;
@@ -51,29 +50,59 @@ function Field({ label, value, onChange, type = 'text', placeholder = '' }: {
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile>(empty);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [error, setError]         = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [logoMode, setLogoMode]   = useState<'url' | 'upload'>('url');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { fetchProfile(); }, []);
 
   async function fetchProfile() {
-    const { data } = await supabase.from('business_profile').select('*').limit(1).single();
+    const { data, error } = await supabase.from('business_profile').select('*').limit(1).single();
     if (data) setProfile(data);
+    if (error && error.code !== 'PGRST116') {
+      setError('Could not load profile. Make sure the business_profile table exists in Supabase.');
+    }
     setLoading(false);
   }
 
   function set(field: keyof Profile, value: string) {
     setProfile(prev => ({ ...prev, [field]: value }));
     setSaved(false);
+    setError('');
+  }
+
+  async function uploadLogo(file: File) {
+    setUploading(true);
+    setError('');
+    const ext = file.name.split('.').pop();
+    const path = `logos/logo-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('assets').upload(path, file, { upsert: true });
+    if (uploadError) {
+      setError('Upload failed: ' + uploadError.message);
+      setUploading(false);
+      return;
+    }
+    const { data } = supabase.storage.from('assets').getPublicUrl(path);
+    set('logo_url', data.publicUrl);
+    setUploading(false);
   }
 
   async function save() {
     setSaving(true);
+    setError('');
     if (profile.id) {
-      await supabase.from('business_profile').update({ ...profile, updated_at: new Date().toISOString() }).eq('id', profile.id);
+      const { error } = await supabase
+        .from('business_profile')
+        .update({ ...profile, updated_at: new Date().toISOString() })
+        .eq('id', profile.id);
+      if (error) { setError('Save failed: ' + error.message); setSaving(false); return; }
     } else {
-      const { data } = await supabase.from('business_profile').insert(profile).select().single();
+      const { data, error } = await supabase.from('business_profile').insert(profile).select().single();
+      if (error) { setError('Save failed: ' + error.message); setSaving(false); return; }
       if (data) setProfile(data);
     }
     setSaving(false);
@@ -108,24 +137,73 @@ export default function ProfilePage() {
         </button>
       </div>
 
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/25 text-red-300 text-xs rounded-xl px-4 py-3">
+          {error}
+          {error.includes('business_profile table') && (
+            <p className="mt-1 text-red-400">Run <strong>supabase-profile-team.sql</strong> in your Supabase SQL Editor first.</p>
+          )}
+        </div>
+      )}
+
       {/* Logo */}
       <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-6">
         <h2 className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-5">Brand</h2>
-        <div className="flex items-center gap-5">
+        <div className="flex items-start gap-5">
           <div className="w-16 h-16 rounded-2xl bg-cyan-500 flex items-center justify-center text-white text-xl font-bold shrink-0 overflow-hidden">
             {profile.logo_url ? (
               <img src={profile.logo_url} alt="Logo" className="w-full h-full object-cover" />
             ) : initials}
           </div>
-          <div className="flex-1">
-            <Field
-              label="Logo URL"
-              value={profile.logo_url}
-              onChange={v => set('logo_url', v)}
-              type="url"
-              placeholder="https://yoursite.com/logo.png"
-            />
-            <p className="text-slate-700 text-xs mt-1.5">Paste a public image URL. Leave blank to use initials.</p>
+          <div className="flex-1 space-y-3">
+            {/* Toggle */}
+            <div className="flex gap-1 bg-white/5 rounded-lg p-1 w-fit">
+              <button onClick={() => setLogoMode('url')}
+                className={`text-xs px-3 py-1.5 rounded-md transition-colors ${logoMode === 'url' ? 'bg-cyan-400/20 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>
+                URL
+              </button>
+              <button onClick={() => setLogoMode('upload')}
+                className={`text-xs px-3 py-1.5 rounded-md transition-colors ${logoMode === 'upload' ? 'bg-cyan-400/20 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>
+                Upload
+              </button>
+            </div>
+
+            {logoMode === 'url' ? (
+              <div>
+                <label className="text-xs text-slate-500 mb-1.5 block">Logo URL</label>
+                <input
+                  type="url"
+                  value={profile.logo_url}
+                  onChange={e => set('logo_url', e.target.value)}
+                  placeholder="https://yoursite.com/logo.png"
+                  className="w-full bg-[#080c14] border border-white/8 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-400/50 transition-colors"
+                />
+                <p className="text-slate-700 text-xs mt-1.5">Paste a public image URL.</p>
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs text-slate-500 mb-1.5 block">Upload Image</label>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); }}
+                />
+                <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                  className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 text-sm px-4 py-2.5 rounded-xl transition-colors disabled:opacity-40">
+                  {uploading ? (
+                    <><div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-cyan-400 rounded-full animate-spin" />Uploading...</>
+                  ) : (
+                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>Choose file</>
+                  )}
+                </button>
+                <p className="text-slate-700 text-xs mt-1.5">Uploads to Supabase Storage (assets bucket).</p>
+                {profile.logo_url && (
+                  <p className="text-slate-600 text-xs mt-1 truncate">Current: {profile.logo_url}</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
