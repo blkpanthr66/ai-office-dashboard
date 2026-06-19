@@ -19,7 +19,7 @@ type Post = {
   created_at: string;
 };
 
-const CATEGORIES = ['Local SEO', 'AI & Automation', 'Web Design', 'Digital Marketing', 'Social Media', 'Business Tips', 'NZ Business', 'General'];
+const CATEGORIES = ['AI & Tech', 'SEO & AEO', 'Websites', 'Business Growth', 'General'];
 const STATUS_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string }> = {
   draft:     { label: 'Draft',     dot: 'bg-amber-400',   text: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20'   },
   published: { label: 'Published', dot: 'bg-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
