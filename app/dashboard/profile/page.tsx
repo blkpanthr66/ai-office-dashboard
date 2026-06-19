@@ -170,15 +170,24 @@ export default function ProfilePage() {
 
             {logoMode === 'url' ? (
               <div>
-                <label className="text-xs text-slate-500 mb-1.5 block">Logo URL</label>
-                <input
-                  type="url"
-                  value={profile.logo_url}
-                  onChange={e => set('logo_url', e.target.value)}
-                  placeholder="https://yoursite.com/logo.png"
-                  className="w-full bg-[#080c14] border border-white/8 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-400/50 transition-colors"
-                />
-                <p className="text-slate-700 text-xs mt-1.5">Paste a public image URL.</p>
+                {profile.logo_url ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-400 text-xs">Logo set</span>
+                    <button onClick={() => set('logo_url', '')} className="text-xs text-red-400 hover:text-red-300 transition-colors">Remove</button>
+                  </div>
+                ) : (
+                  <>
+                    <label className="text-xs text-slate-500 mb-1.5 block">Logo URL</label>
+                    <input
+                      type="url"
+                      value={profile.logo_url}
+                      onChange={e => set('logo_url', e.target.value)}
+                      placeholder="https://yoursite.com/logo.png"
+                      className="w-full bg-[#080c14] border border-white/8 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-400/50 transition-colors"
+                    />
+                    <p className="text-slate-700 text-xs mt-1.5">Paste a public image URL.</p>
+                  </>
+                )}
               </div>
             ) : (
               <div>
