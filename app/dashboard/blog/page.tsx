@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
+
 type Post = {
   id: string;
   title: string;
@@ -57,7 +58,11 @@ export default function BlogPage() {
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError]   = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [coverMode, setCoverMode]       = useState<'url' | 'upload'>('url');
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [coverError, setCoverError]     = useState('');
   const tagRef = useRef<HTMLInputElement>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { fetchPosts(); }, []);
 
@@ -100,6 +105,18 @@ export default function BlogPage() {
 
   function removeTag(tag: string) {
     f('tags', form.tags.filter(t => t !== tag));
+  }
+
+  async function uploadCoverImage(file: File) {
+    setUploadingCover(true);
+    setCoverError('');
+    const ext = file.name.split('.').pop();
+    const path = `blog-covers/cover-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('assets').upload(path, file, { upsert: true });
+    if (uploadError) { setCoverError('Upload failed: ' + uploadError.message); setUploadingCover(false); return; }
+    const { data } = supabase.storage.from('assets').getPublicUrl(path);
+    f('cover_image', data.publicUrl);
+    setUploadingCover(false);
   }
 
   async function save(publishNow = false) {
@@ -229,7 +246,52 @@ export default function BlogPage() {
           </div>
         </div>
         <Field label="Author Name" value={form.author} onChange={v => f('author', v)} placeholder="PinPoint Local AI" />
-        <Field label="Cover Image URL" value={form.cover_image} onChange={v => f('cover_image', v)} placeholder="https://..." />
+        {/* Cover image */}
+        <div>
+          <label className="text-xs text-slate-500 mb-1.5 block">Cover Image</label>
+          {form.cover_image && (
+            <img src={form.cover_image} alt="Cover preview" className="w-full h-36 object-cover rounded-xl mb-3 bg-white/5" />
+          )}
+          <div className="flex gap-1 bg-white/5 rounded-lg p-1 w-fit mb-3">
+            <button onClick={() => setCoverMode('url')}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${coverMode === 'url' ? 'bg-cyan-400/20 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>
+              URL
+            </button>
+            <button onClick={() => setCoverMode('upload')}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${coverMode === 'upload' ? 'bg-cyan-400/20 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>
+              Upload
+            </button>
+          </div>
+          {coverMode === 'url' ? (
+            form.cover_image ? (
+              <div className="flex items-center gap-3">
+                <span className="text-slate-400 text-xs">Image set</span>
+                <button onClick={() => f('cover_image', '')} className="text-xs text-red-400 hover:text-red-300 transition-colors">Remove</button>
+              </div>
+            ) : (
+              <input type="url" value={form.cover_image} onChange={e => f('cover_image', e.target.value)}
+                placeholder="https://yoursite.com/image.jpg"
+                className="w-full bg-[#080c14] border border-white/8 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-400/50 transition-colors" />
+            )
+          ) : (
+            <>
+              <input ref={coverFileRef} type="file" accept="image/*" className="hidden"
+                onChange={e => { const f2 = e.target.files?.[0]; if (f2) uploadCoverImage(f2); e.target.value = ''; }} />
+              <button onClick={() => coverFileRef.current?.click()} disabled={uploadingCover}
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 text-sm px-4 py-2.5 rounded-xl transition-colors disabled:opacity-40">
+                {uploadingCover ? (
+                  <><div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-cyan-400 rounded-full animate-spin" />Uploading...</>
+                ) : (
+                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>Choose image</>
+                )}
+              </button>
+              {form.cover_image && (
+                <button onClick={() => f('cover_image', '')} className="ml-3 text-xs text-red-400 hover:text-red-300 transition-colors">Remove</button>
+              )}
+            </>
+          )}
+          {coverError && <p className="text-red-400 text-xs mt-2">{coverError}</p>}
+        </div>
         {/* Tags */}
         <div>
           <label className="text-xs text-slate-500 mb-1.5 block">Tags</label>
