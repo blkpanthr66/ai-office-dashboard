@@ -130,7 +130,7 @@ export default function BlogPage() {
     setUploadingCover(false);
   }
 
-  async function save(publishNow = false, scheduleDate = '') {
+  async function save(publishNow = false, scheduledFor = '') {
     if (!form.title.trim()) return;
     setSaving(true);
     const slug = form.slug || slugify(form.title);
@@ -140,9 +140,9 @@ export default function BlogPage() {
     if (publishNow) {
       status = 'published';
       published_at = new Date().toISOString();
-    } else if (scheduleDate) {
+    } else if (scheduledFor) {
       status = 'scheduled';
-      published_at = new Date(scheduleDate).toISOString();
+      published_at = new Date(scheduledFor).toISOString();
     } else {
       status = form.status === 'scheduled' && !form.scheduled_at ? 'draft' : form.status;
       published_at = editing?.published_at || null;
