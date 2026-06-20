@@ -278,7 +278,45 @@ export default function BlogPage() {
           </button>
         </div>
         {genError && <div className="mb-3 text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{genError}</div>}
-        <textarea value={form.content} onChange={e => f('content', e.target.value)}
+        {/* Formatting toolbar */}
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {[
+            { label: 'H2', title: 'Heading', snippet: '<h2>Heading</h2>' },
+            { label: 'B', title: 'Bold', snippet: '<strong>bold text</strong>' },
+            { label: '¶', title: 'Paragraph', snippet: '<p>Your paragraph here.</p>' },
+            { label: '• List', title: 'Bullet List', snippet: '<ul>\n  <li>Item one</li>\n  <li>Item two</li>\n  <li>Item three</li>\n</ul>' },
+            { label: '1. List', title: 'Numbered List', snippet: '<ol>\n  <li>First step</li>\n  <li>Second step</li>\n  <li>Third step</li>\n</ol>' },
+          ].map(({ label, title, snippet }) => (
+            <button key={label} title={title} type="button"
+              onClick={() => {
+                const ta = document.querySelector('textarea[data-content]') as HTMLTextAreaElement;
+                if (!ta) return;
+                const start = ta.selectionStart, end = ta.selectionEnd;
+                const before = form.content.slice(0, start), after = form.content.slice(end);
+                const newVal = before + '\n' + snippet + '\n' + after;
+                f('content', newVal);
+                setTimeout(() => { ta.selectionStart = ta.selectionEnd = start + snippet.length + 2; ta.focus(); }, 0);
+              }}
+              className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-400 hover:text-white text-xs font-mono rounded-lg transition-colors">
+              {label}
+            </button>
+          ))}
+          <button title="Teal Callout / Insight Box" type="button"
+            onClick={() => {
+              const ta = document.querySelector('textarea[data-content]') as HTMLTextAreaElement;
+              if (!ta) return;
+              const snippet = '<div class="post-callout"><p><strong>Key insight:</strong> Write your tip, insight, or highlight here.</p></div>';
+              const start = ta.selectionStart;
+              const before = form.content.slice(0, start), after = form.content.slice(start);
+              const newVal = before + '\n' + snippet + '\n' + after;
+              f('content', newVal);
+              setTimeout(() => { ta.selectionStart = ta.selectionEnd = start + snippet.length + 2; ta.focus(); }, 0);
+            }}
+            className="px-2.5 py-1 bg-cyan-400/10 hover:bg-cyan-400/20 border border-cyan-400/20 text-cyan-400 text-xs font-semibold rounded-lg transition-colors">
+            💡 Callout
+          </button>
+        </div>
+        <textarea data-content value={form.content} onChange={e => f('content', e.target.value)}
           rows={18} placeholder="Start writing your post here, or click 'Generate with AI' above..."
           className="w-full bg-[#080c14] border border-white/8 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-cyan-400/50 resize-y font-mono leading-relaxed" />
         <p className="text-slate-700 text-xs mt-2">You can write in plain text or HTML. The website will display it formatted.</p>

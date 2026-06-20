@@ -25,8 +25,9 @@ Requirements:
 - Write for NZ small business owners as the audience
 - Practical, helpful, and authoritative tone
 - 600–900 words
-- Use simple HTML formatting: <h2> for subheadings, <p> for paragraphs, <ul>/<li> for lists
+- Use simple HTML formatting: <h2> for subheadings, <p> for paragraphs, <ul>/<li> for lists, <strong> for bold
 - Include a clear intro, 3–4 key sections, and a call to action at the end mentioning PinPoint Local AI
+- Include 1–2 teal callout boxes for key insights or tips using this exact HTML: <div class="post-callout"><p><strong>Key insight:</strong> Your insight here.</p></div>
 - Do NOT include the main title (it will be added separately)
 - Do NOT include markdown, only HTML tags listed above
 
