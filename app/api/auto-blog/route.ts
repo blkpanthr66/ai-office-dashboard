@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { createClient } from '@supabase/supabase-js';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -142,7 +143,20 @@ export async function GET(req: NextRequest) {
   const validSecret = process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`;
   const validVercel = cronHeader === '1';
 
+  // Also allow logged-in dashboard users
+  let validSession = false;
   if (!validSecret && !validVercel) {
+    const cookieHeader = req.headers.get('cookie') || '';
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { cookie: cookieHeader } } }
+    );
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    validSession = !!user;
+  }
+
+  if (!validSecret && !validVercel && !validSession) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
