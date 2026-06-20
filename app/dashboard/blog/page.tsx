@@ -143,8 +143,14 @@ export default function BlogPage() {
     } else if (scheduledFor) {
       status = 'scheduled';
       published_at = new Date(scheduledFor).toISOString();
+    } else if (form.status === 'scheduled' && scheduleDate) {
+      status = 'scheduled';
+      published_at = new Date(scheduleDate).toISOString();
+    } else if (form.status === 'scheduled' && !scheduleDate) {
+      status = 'draft';
+      published_at = editing?.published_at || null;
     } else {
-      status = form.status === 'scheduled' && !form.scheduled_at ? 'draft' : form.status;
+      status = form.status;
       published_at = editing?.published_at || null;
     }
 
@@ -291,7 +297,7 @@ export default function BlogPage() {
           </div>
           <div>
             <label className="text-xs text-slate-500 mb-1.5 block">Status</label>
-            <select value={form.status} onChange={e => f('status', e.target.value)}
+            <select value={form.status} onChange={e => { f('status', e.target.value); if (e.target.value === 'scheduled') setShowSchedule(true); else setShowSchedule(false); }}
               className="w-full bg-[#080c14] border border-white/8 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-400/50">
               <option value="draft">Draft</option>
               <option value="scheduled">Scheduled</option>
@@ -300,6 +306,25 @@ export default function BlogPage() {
             </select>
           </div>
         </div>
+
+        {/* Schedule date picker — shown when status is Scheduled */}
+        {(form.status === 'scheduled' || showSchedule) && (
+          <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+            <label className="text-xs text-blue-400 font-semibold mb-2 flex items-center gap-2">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              Scheduled Publish Date &amp; Time
+            </label>
+            <input
+              type="datetime-local"
+              value={scheduleDate}
+              min={new Date().toISOString().slice(0, 16)}
+              onChange={e => setScheduleDate(e.target.value)}
+              className="w-full bg-[#080c14] border border-blue-500/20 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-400/50 [color-scheme:dark]"
+            />
+            <p className="text-slate-500 text-xs mt-2">Post will automatically go live at this date and time (NZ time).</p>
+          </div>
+        )}
+
         <Field label="Author Name" value={form.author} onChange={v => f('author', v)} placeholder="PinPoint Local AI" />
         {/* Cover image */}
         <div>
