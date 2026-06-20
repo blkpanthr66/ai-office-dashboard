@@ -49,6 +49,48 @@ function Field({ label, value, onChange, type = 'text', placeholder = '' }: {
   );
 }
 
+function AutoGenerateButton({ onSuccess }: { onSuccess: () => void }) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<{ success?: boolean; title?: string; error?: string } | null>(null);
+
+  async function handleRun() {
+    setRunning(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/auto-blog', { method: 'GET' });
+      const data = await res.json();
+      if (data.success) {
+        setResult({ success: true, title: data.post.title });
+        onSuccess();
+      } else {
+        setResult({ error: data.error || 'Something went wrong' });
+      }
+    } catch {
+      setResult({ error: 'Request failed' });
+    }
+    setRunning(false);
+  }
+
+  return (
+    <div>
+      <button onClick={handleRun} disabled={running}
+        className="flex items-center gap-2 px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-semibold rounded-xl hover:bg-cyan-500/20 transition-colors disabled:opacity-50">
+        {running ? (
+          <><div className="w-3.5 h-3.5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />Generating post...</>
+        ) : (
+          <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>Auto-Generate &amp; Publish Now</>
+        )}
+      </button>
+      {result?.success && (
+        <p className="mt-2 text-emerald-400 text-xs">Published: &quot;{result.title}&quot;</p>
+      )}
+      {result?.error && (
+        <p className="mt-2 text-red-400 text-xs">Error: {result.error}</p>
+      )}
+    </div>
+  );
+}
+
 export default function BlogPage() {
   const [posts, setPosts]         = useState<Post[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -594,9 +636,10 @@ export default function BlogPage() {
           <svg className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           <div>
             <p className="text-purple-300 text-sm font-medium mb-1">AI Blog Generation</p>
-            <p className="text-slate-500 text-xs leading-relaxed">
-              Click <strong className="text-slate-400">New Post</strong>, enter a title and category, then hit <strong className="text-slate-400">Generate with AI</strong>. The AI will write a full post tailored to your business. You can edit before publishing. Automatic weekly AI posts coming soon.
+            <p className="text-slate-500 text-xs leading-relaxed mb-3">
+              Click <strong className="text-slate-400">New Post</strong>, enter a title and category, then hit <strong className="text-slate-400">Generate with AI</strong>. The AI will write a full post tailored to your business. Or use the button below to instantly auto-generate and publish a region-specific NZ post.
             </p>
+            <AutoGenerateButton onSuccess={fetchPosts} />
           </div>
         </div>
       </div>
