@@ -215,9 +215,9 @@ export default function BlogPage() {
             className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 text-sm font-medium rounded-xl transition-colors disabled:opacity-40">
             {saving ? 'Saving...' : 'Save Draft'}
           </button>
-          <button onClick={() => setShowSchedule(s => !s)} disabled={!form.title.trim()}
-            className={`px-4 py-2.5 border text-sm font-medium rounded-xl transition-colors disabled:opacity-40 ${showSchedule ? 'bg-blue-500/20 border-blue-500/30 text-blue-300' : 'bg-white/5 hover:bg-white/10 border-white/8 text-slate-300'}`}>
-            Schedule
+          <button onClick={() => setShowSchedule(s => !s)}
+            className={`px-4 py-2.5 border text-sm font-medium rounded-xl transition-colors ${showSchedule ? 'bg-blue-500/20 border-blue-500/30 text-blue-300' : 'bg-white/5 hover:bg-white/10 border-white/8 text-slate-300'}`}>
+            📅 Schedule
           </button>
           <button onClick={() => save(true)} disabled={saving || !form.title.trim()}
             className="px-4 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-[#080c14] text-sm font-bold rounded-xl transition-colors disabled:opacity-40">
