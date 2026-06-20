@@ -61,6 +61,11 @@ export default function BlogPage() {
   const [genError, setGenError]   = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [scheduleDate, setScheduleDate] = useState('');
+
+  function toLocalDT(date: Date): string {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${p(date.getMonth()+1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
+  }
   const [showSchedule, setShowSchedule] = useState(false);
   const [coverMode, setCoverMode]       = useState<'url' | 'upload'>('url');
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -93,7 +98,7 @@ export default function BlogPage() {
   function openEdit(post: Post) {
     setEditing(post);
     const scheduledAt = post.status === 'scheduled' && post.published_at
-      ? new Date(post.published_at).toISOString().slice(0, 16) : '';
+      ? toLocalDT(new Date(post.published_at)) : '';
     setForm({
       title: post.title, slug: post.slug, excerpt: post.excerpt || '',
       content: post.content || '', cover_image: post.cover_image || '',
@@ -244,7 +249,7 @@ export default function BlogPage() {
                 <input
                   type="datetime-local"
                   value={scheduleDate}
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={toLocalDT(new Date())}
                   onChange={e => setScheduleDate(e.target.value)}
                   className="bg-[#080c14] border border-blue-500/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-400/50 [color-scheme:dark]"
                 />
@@ -355,7 +360,7 @@ export default function BlogPage() {
             <input
               type="datetime-local"
               value={scheduleDate}
-              min={new Date().toISOString().slice(0, 16)}
+              min={toLocalDT(new Date())}
               onChange={e => setScheduleDate(e.target.value)}
               className="w-full bg-[#080c14] border border-blue-500/20 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-400/50 [color-scheme:dark]"
             />
