@@ -178,6 +178,25 @@ export default function BlogPage() {
     setPosts(prev => prev.filter(p => p.id !== id));
   }
 
+  async function addCalloutsToContent() {
+    if (!form.content.trim()) return;
+    setGenerating(true);
+    setGenError('');
+    try {
+      const res = await fetch('/api/add-callouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: form.content }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      f('content', data.content);
+    } catch (err: unknown) {
+      setGenError(err instanceof Error ? err.message : 'Failed to add callouts');
+    }
+    setGenerating(false);
+  }
+
   async function generateWithAI() {
     if (!form.title.trim()) { setGenError('Enter a title first so the AI knows what to write about.'); return; }
     setGenerating(true);
@@ -273,14 +292,24 @@ export default function BlogPage() {
             <h2 className="text-xs font-semibold text-slate-600 uppercase tracking-widest">Content</h2>
             <p className="text-slate-600 text-xs mt-1">Write your own or let AI draft it from your title</p>
           </div>
-          <button onClick={generateWithAI} disabled={generating || !form.title.trim()}
-            className="flex items-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-300 text-xs font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-40">
-            {generating ? (
-              <><div className="w-3.5 h-3.5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />Generating...</>
-            ) : (
-              <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>Generate with AI</>
-            )}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={addCalloutsToContent} disabled={generating || !form.content.trim()}
+              className="flex items-center gap-2 bg-cyan-400/10 hover:bg-cyan-400/20 border border-cyan-400/20 text-cyan-400 text-xs font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-40">
+              {generating ? (
+                <><div className="w-3.5 h-3.5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />Adding...</>
+              ) : (
+                <>💡 Add Callouts</>
+              )}
+            </button>
+            <button onClick={generateWithAI} disabled={generating || !form.title.trim()}
+              className="flex items-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-300 text-xs font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-40">
+              {generating ? (
+                <><div className="w-3.5 h-3.5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />Generating...</>
+              ) : (
+                <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>Generate with AI</>
+              )}
+            </button>
+          </div>
         </div>
         {genError && <div className="mb-3 text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{genError}</div>}
         {/* Formatting toolbar */}
