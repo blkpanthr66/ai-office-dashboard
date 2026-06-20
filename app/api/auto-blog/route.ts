@@ -51,7 +51,7 @@ function pickCategory(recentPosts: { category: string }[]): string {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-async function generatePost(region: string, category: string, recentTitles: string[]): Promise<{ title: string; excerpt: string; content: string }> {
+async function generatePost(region: string | null, category: string, recentTitles: string[]): Promise<{ title: string; excerpt: string; content: string }> {
   const recentList = recentTitles.slice(0, 10).map(t => `- ${t}`).join('\n');
 
   const message = await client.messages.create({
@@ -61,20 +61,18 @@ async function generatePost(region: string, category: string, recentTitles: stri
       role: 'user',
       content: `You are a content writer for PinPoint Local AI, a digital growth agency based in Rotorua, New Zealand. You help local NZ businesses grow with websites, local SEO, AI receptionists, and automation.
 
-Write a complete, publish-ready blog post for the region of ${region}, New Zealand, in the category: "${category}".
-
-The post should focus on current trends in AI, technology, and business growth — and how they apply specifically to businesses in ${region}. Make it feel locally relevant and timely.
+Write a complete, publish-ready blog post in the category: "${category}".
+${region ? `This post is focused on the ${region} region of New Zealand — reference ${region} naturally 2-3 times throughout.` : `This post is for a general NZ business audience — broad, practical advice about AI, technology, and business growth applicable to any NZ business.`}
 
 Do NOT write about any of these recently published topics:
 ${recentList}
 
 Requirements:
-- Audience: small business owners, trades, and service businesses in ${region} and wider NZ
+- Audience: NZ small business owners, trades, and service businesses
 - Tone: practical, warm, expert — not salesy
 - Length: 700–1000 words
 - Use simple HTML only: <h2>, <p>, <ul>, <li>, <strong>
 - Include a clear intro, 3–4 sections with <h2> headings, and a closing paragraph mentioning PinPoint Local AI
-- Naturally reference ${region} and the local business environment at least 2–3 times
 - Include 2 teal callout boxes at natural points using EXACTLY this HTML:
   <div class="post-callout"><p><strong>Key insight:</strong> Your tip here.</p></div>
 - Do NOT include the H1 title in the content
@@ -83,7 +81,7 @@ Requirements:
 
 Respond in this exact JSON format only:
 {
-  "title": "SEO-friendly blog post title that includes ${region}",
+  "title": "${region ? `SEO-friendly title that includes ${region}` : 'SEO-friendly title for a general NZ business audience'}",
   "excerpt": "One sentence that summarises the post and entices clicks.",
   "content": "<p>Full HTML content here...</p>"
 }`,
@@ -147,10 +145,11 @@ export async function GET(req: NextRequest) {
   const _ = validSecret || validVercel; // keep for cron validation only
 
   try {
-    // 1. Pick a fresh region and category
+    // 1. Pick topic type, region (if regional), and category
     const recentPosts = await getRecentPosts();
     const recentTitles = recentPosts.map(p => p.title);
-    const region = pickRegion(recentTitles);
+    const isRegional = Math.random() < 0.5;
+    const region = isRegional ? pickRegion(recentTitles) : null;
     const category = pickCategory(recentPosts);
 
     // 2. Generate post with Claude
@@ -158,7 +157,7 @@ export async function GET(req: NextRequest) {
     const slug = slugify(title);
 
     // 3. Fetch cover image from Unsplash
-    const unsplashQuery = `${region} New Zealand business technology`;
+    const unsplashQuery = region ? `${region} New Zealand business` : `New Zealand business technology AI`;
     const image = await fetchUnsplashImage(unsplashQuery);
 
     // 4. Upload cover image to Supabase storage
