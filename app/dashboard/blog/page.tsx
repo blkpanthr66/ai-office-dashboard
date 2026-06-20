@@ -246,7 +246,7 @@ export default function BlogPage() {
                   value={scheduleDate}
                   min={new Date().toISOString().slice(0, 16)}
                   onChange={e => setScheduleDate(e.target.value)}
-                  className="bg-[#080c14] border border-blue-500/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-400/50"
+                  className="bg-[#080c14] border border-blue-500/20 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-400/50 [color-scheme:dark]"
                 />
                 <button
                   onClick={() => { if (scheduleDate) save(false, scheduleDate); }}
