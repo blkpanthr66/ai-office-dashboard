@@ -78,6 +78,7 @@ Requirements:
 - Include 2 teal callout boxes at natural points using EXACTLY this HTML:
   <div class="post-callout"><p><strong>Key insight:</strong> Your tip here.</p></div>
 - Do NOT include the H1 title in the content
+- Always refer to the current year as 2026 — never use 2025
 - Do NOT use markdown, em dashes (—), or the URL pinpointlocalai.co.nz — use pinpointlocal.ai
 
 Respond in this exact JSON format only:
