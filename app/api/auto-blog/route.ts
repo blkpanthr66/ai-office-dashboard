@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -146,11 +147,11 @@ export async function GET(req: NextRequest) {
   // Also allow logged-in dashboard users
   let validSession = false;
   if (!validSecret && !validVercel) {
-    const cookieHeader = req.headers.get('cookie') || '';
-    const supabaseClient = createClient(
+    const cookieStore = await cookies();
+    const supabaseClient = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { cookie: cookieHeader } } }
+      { cookies: { getAll: () => cookieStore.getAll() } }
     );
     const { data: { user } } = await supabaseClient.auth.getUser();
     validSession = !!user;
