@@ -176,6 +176,7 @@ export async function GET(req: NextRequest) {
         excerpt,
         content,
         category,
+        author: 'PinPoint Local AI',
         cover_image: coverImage,
         status: 'published',
         published_at: now,
