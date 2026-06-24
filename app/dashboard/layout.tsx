@@ -149,7 +149,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* Main nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
+      <nav className="flex-1 overflow-y-auto scrollbar-none px-3 py-4 space-y-2">
         {navGroups.map(group => <NavGroup key={group.label} group={group} pathname={pathname} />)}
       </nav>
 

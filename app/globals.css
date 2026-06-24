@@ -90,3 +90,12 @@ html.light-mode .backdrop-blur-xl {
 
 /* Drag-and-drop empty state */
 html.light-mode .border-dashed { border-color: rgba(0,0,0,0.1) !important; }
+
+/* Hide scrollbar while keeping scroll functionality */
+.scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
