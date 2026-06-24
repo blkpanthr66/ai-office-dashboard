@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
 
@@ -86,6 +86,129 @@ function AutoGenerateButton({ onSuccess }: { onSuccess: () => void }) {
       )}
       {result?.error && (
         <p className="mt-2 text-red-400 text-xs">Error: {result.error}</p>
+      )}
+    </div>
+  );
+}
+
+type FeaturedState = {
+  slug: string;
+  mode: 'manual' | 'auto';
+  post: { id: string; title: string; slug: string; cover_image: string; category: string; published_at: string } | null;
+};
+
+function FeaturedPostPanel({ posts }: { posts: Post[] }) {
+  const [featured, setFeatured] = useState<FeaturedState | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [showPicker, setShowPicker] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(async () => {
+    const res = await fetch('/api/featured-post');
+    const data = await res.json();
+    setFeatured({ slug: data.post?.slug || '', mode: data.mode || 'manual', post: data.post });
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function setMode(mode: 'manual' | 'auto') {
+    if (!featured) return;
+    setSaving(true);
+    await fetch('/api/featured-post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+    setFeatured(f => f ? { ...f, mode } : f);
+    setSaving(false);
+  }
+
+  async function pickPost(post: Post) {
+    setSaving(true);
+    await fetch('/api/featured-post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: post.slug, mode: 'manual' }) });
+    setFeatured({ slug: post.slug, mode: 'manual', post: { id: post.id, title: post.title, slug: post.slug, cover_image: post.cover_image, category: post.category, published_at: post.published_at || '' } });
+    setSaving(false);
+    setShowPicker(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  const published = posts.filter(p => p.status === 'published');
+  const filtered = search ? published.filter(p => p.title.toLowerCase().includes(search.toLowerCase())) : published;
+
+  if (!featured) return <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-5 animate-pulse h-28" />;
+
+  return (
+    <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-5 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-white font-semibold text-sm">Featured Post</h2>
+          <p className="text-slate-500 text-xs mt-0.5">Shown as the hero post on your blog page</p>
+        </div>
+        {saved && <span className="text-emerald-400 text-xs font-medium">Saved</span>}
+        {saving && <div className="w-4 h-4 border-2 border-slate-600 border-t-cyan-400 rounded-full animate-spin" />}
+      </div>
+
+      {/* Current featured post */}
+      {featured.post ? (
+        <div className="flex items-center gap-3 mb-4 p-3 bg-white/3 rounded-xl border border-white/6">
+          {featured.post.cover_image && (
+            <img src={featured.post.cover_image} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-medium truncate">{featured.post.title}</p>
+            <p className="text-slate-500 text-xs mt-0.5">{featured.post.category}{featured.post.published_at ? ` · ${new Date(featured.post.published_at).toLocaleDateString('en-NZ')}` : ''}</p>
+          </div>
+          <button onClick={() => setShowPicker(s => !s)}
+            className="text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-500/20 hover:border-cyan-400/40 px-3 py-1.5 rounded-lg transition-colors shrink-0">
+            Change
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => setShowPicker(true)}
+          className="w-full mb-4 py-3 border border-dashed border-white/15 rounded-xl text-slate-500 text-sm hover:border-cyan-500/30 hover:text-cyan-400 transition-colors">
+          + Select featured post
+        </button>
+      )}
+
+      {/* Mode toggle */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-slate-500 text-xs">Rotation:</span>
+        <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
+          <button onClick={() => setMode('manual')}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${featured.mode === 'manual' ? 'bg-cyan-400/20 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>
+            Manual
+          </button>
+          <button onClick={() => setMode('auto')}
+            className={`text-xs px-3 py-1.5 rounded-md transition-colors ${featured.mode === 'auto' ? 'bg-cyan-400/20 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>
+            Auto (every 3 days)
+          </button>
+        </div>
+        {featured.mode === 'auto' && (
+          <span className="text-slate-600 text-xs">Rotates to the next most recent published post automatically</span>
+        )}
+      </div>
+
+      {/* Post picker */}
+      {showPicker && (
+        <div className="border border-white/8 rounded-xl overflow-hidden">
+          <div className="p-3 border-b border-white/8">
+            <input type="text" placeholder="Search posts..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full bg-white/5 border border-white/8 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-400/50" />
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-slate-600 text-xs text-center py-6">No published posts found</p>
+            ) : filtered.map(post => (
+              <button key={post.id} onClick={() => pickPost(post)}
+                className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0 ${post.slug === featured.slug ? 'bg-cyan-400/5' : ''}`}>
+                {post.cover_image && <img src={post.cover_image} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-medium truncate">{post.title}</p>
+                  <p className="text-slate-600 text-xs">{post.category} · {post.published_at ? new Date(post.published_at).toLocaleDateString('en-NZ') : 'No date'}</p>
+                </div>
+                {post.slug === featured.slug && <span className="text-cyan-400 text-xs shrink-0">Current</span>}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -547,6 +670,9 @@ export default function BlogPage() {
           New Post
         </button>
       </div>
+
+      {/* Featured post control */}
+      <FeaturedPostPanel posts={posts} />
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
