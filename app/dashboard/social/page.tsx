@@ -18,7 +18,7 @@ const TONES = [
 
 type AITab = 'copy' | 'stock' | 'generate';
 type StockType = 'photos' | 'videos';
-type MainTab = 'compose' | 'auto';
+type MainTab = 'compose' | 'auto' | 'drafts';
 
 type Post = {
   message: string;
@@ -142,6 +142,89 @@ export default function SocialPage() {
 
   function removeTopic(t: string) {
     setAutoTopics(prev => prev.filter(x => x !== t));
+  }
+
+  // Drafts & scheduled
+  const [drafts, setDrafts] = useState<any[]>([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(true);
+  const [savingDraft, setSavingDraft] = useState(false);
+
+  useEffect(() => { fetchDrafts(); }, []);
+
+  async function fetchDrafts() {
+    try {
+      const res = await fetch('/api/social/drafts');
+      const data = await res.json();
+      setDrafts(data.posts || []);
+    } catch { /* ignore */ }
+    finally { setLoadingDrafts(false); }
+  }
+
+  async function saveDraft() {
+    if (!message.trim()) return;
+    setSavingDraft(true);
+    try {
+      const res = await fetch('/api/social/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, imageUrl: imageUrl.startsWith('http') ? imageUrl : null, platforms, status: 'draft' }),
+      });
+      const data = await res.json();
+      if (data.post) {
+        setDrafts(prev => [data.post, ...prev]);
+        setResult({ success: true, message: 'Draft saved!' });
+      }
+    } catch {
+      setResult({ success: false, message: 'Failed to save draft' });
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function schedulePost() {
+    if (!message.trim() || !scheduledAt) return;
+    setPosting(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/social/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          imageUrl: imageUrl.startsWith('http') ? imageUrl : null,
+          platforms,
+          status: 'scheduled',
+          scheduledAt: new Date(scheduledAt).toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (data.post) {
+        setDrafts(prev => [data.post, ...prev]);
+        setResult({ success: true, message: `Post scheduled for ${new Date(scheduledAt).toLocaleString('en-NZ')}` });
+        setMessage('');
+        clearMedia();
+        setScheduledAt('');
+      } else {
+        setResult({ success: false, message: data.error || 'Scheduling failed' });
+      }
+    } catch {
+      setResult({ success: false, message: 'Scheduling failed' });
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  async function deleteDraft(id: string) {
+    await fetch('/api/social/drafts', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    setDrafts(prev => prev.filter(d => d.id !== id));
+  }
+
+  function loadDraft(post: any) {
+    setMessage(post.message);
+    if (post.image_url) { setImageUrl(post.image_url); setImagePreview(post.image_url); setMediaType('image'); }
+    setPlatforms(post.platforms || ['facebook']);
+    setMainTab('compose');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // AI panel state
@@ -339,6 +422,7 @@ export default function SocialPage() {
         {([
           { id: 'compose', label: 'Compose', icon: '✏️' },
           { id: 'auto', label: 'Auto-Post', icon: '🤖' },
+          { id: 'drafts', label: 'Drafts & Scheduled', icon: '📋' },
         ] as { id: MainTab; label: string; icon: string }[]).map(tab => (
           <button key={tab.id} onClick={() => setMainTab(tab.id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -665,12 +749,24 @@ export default function SocialPage() {
               {generatedImageUrl && !generatingImage && (
                 <div className="space-y-3">
                   <img src={generatedImageUrl} alt="Generated" className="w-full rounded-xl" />
-                  <button
-                    onClick={() => useGeneratedImage(generatedImageUrl)}
-                    className="w-full py-2.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 rounded-xl text-sm font-medium transition-all"
-                  >
-                    Use this image
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => useGeneratedImage(generatedImageUrl)}
+                      className="flex-1 py-2.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 rounded-xl text-sm font-medium transition-all"
+                    >
+                      Use this image
+                    </button>
+                    <a
+                      href={generatedImageUrl}
+                      download="pinpoint-ai-image.png"
+                      className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 rounded-xl text-sm font-medium transition-all"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download
+                    </a>
+                  </div>
                 </div>
               )}
               <p className="text-slate-700 text-xs">Powered by gpt-image-1 · ~$0.04 per image</p>
@@ -764,7 +860,7 @@ export default function SocialPage() {
         {/* Right panel */}
         <div className="space-y-4">
           <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-4">
-            <p className="text-slate-400 text-xs font-medium mb-3">Schedule</p>
+            <p className="text-slate-400 text-xs font-medium mb-3">When to post</p>
             <div className="space-y-3">
               <button onClick={() => setScheduledAt('')}
                 className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm border transition-all ${
@@ -783,15 +879,35 @@ export default function SocialPage() {
             </div>
           </div>
 
-          <button onClick={handlePost}
-            disabled={posting || uploading || !message.trim() || platforms.length === 0 || overLimit}
-            className="w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white">
-            {posting ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                {isScheduled ? 'Scheduling...' : 'Publishing...'}
-              </span>
-            ) : isScheduled ? 'Schedule Post' : 'Publish Now'}
+          {/* Action buttons */}
+          {!scheduledAt ? (
+            <button onClick={handlePost}
+              disabled={posting || uploading || !message.trim() || platforms.length === 0 || overLimit}
+              className="w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white">
+              {posting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  Publishing...
+                </span>
+              ) : 'Publish Now'}
+            </button>
+          ) : (
+            <button onClick={schedulePost}
+              disabled={posting || uploading || !message.trim() || platforms.length === 0 || overLimit}
+              className="w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white">
+              {posting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  Scheduling...
+                </span>
+              ) : 'Schedule Post'}
+            </button>
+          )}
+
+          <button onClick={saveDraft}
+            disabled={savingDraft || !message.trim()}
+            className="w-full py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300">
+            {savingDraft ? 'Saving...' : '📋 Save as Draft'}
           </button>
 
           {result && (
@@ -811,10 +927,10 @@ export default function SocialPage() {
         </div>
       </div>
 
-      {/* History */}
-      {mainTab === 'compose' && history.length > 0 && (
+      {/* Session history */}
+      {history.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-white font-medium text-sm mb-4">Posted this session</h2>
+          <h2 className="text-white font-medium text-sm mb-4">Published this session</h2>
           <div className="space-y-3">
             {history.map((post, i) => (
               <div key={i} className="bg-[#0d1420] border border-white/8 rounded-2xl p-4 flex items-start gap-3">
@@ -823,19 +939,86 @@ export default function SocialPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white text-sm line-clamp-2">{post.message}</p>
-                  <p className="text-slate-600 text-xs mt-1">
-                    {post.scheduledAt ? `Scheduled for ${new Date(post.scheduledAt).toLocaleString('en-NZ')}` : 'Published now'}
-                  </p>
                 </div>
-                <span className="shrink-0 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2 py-1">
-                  {post.scheduledAt ? 'Scheduled' : 'Live'}
-                </span>
+                <span className="shrink-0 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2 py-1">Live</span>
               </div>
             ))}
           </div>
         </div>
       )}
       </>}
+
+      {/* Drafts & Scheduled tab */}
+      {mainTab === 'drafts' && (
+        <div className="max-w-3xl space-y-4">
+          {loadingDrafts ? (
+            <div className="space-y-3">
+              {[1,2,3].map(i => <div key={i} className="bg-[#0d1420] border border-white/8 rounded-2xl h-24 animate-pulse" />)}
+            </div>
+          ) : drafts.length === 0 ? (
+            <div className="text-center py-20 text-slate-600 text-sm">
+              No drafts or scheduled posts yet.<br />
+              <button onClick={() => setMainTab('compose')} className="text-cyan-400 mt-2 hover:underline">Go to Compose</button>
+            </div>
+          ) : (
+            <>
+              {/* Scheduled */}
+              {drafts.filter(d => d.status === 'scheduled').length > 0 && (
+                <div>
+                  <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-wide">Scheduled</p>
+                  <div className="space-y-3">
+                    {drafts.filter(d => d.status === 'scheduled').map(post => (
+                      <div key={post.id} className="bg-[#0d1420] border border-cyan-500/15 rounded-2xl p-4 flex items-start gap-4">
+                        {post.image_url && (
+                          <img src={post.image_url} alt="" className="w-16 h-16 rounded-xl object-cover shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm line-clamp-2 mb-1">{post.message}</p>
+                          <p className="text-cyan-400 text-xs">
+                            📅 {new Date(post.scheduled_at).toLocaleString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <span className="text-xs text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-2 py-1 text-center">Scheduled</span>
+                          <button onClick={() => loadDraft(post)} className="text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 rounded-lg px-2 py-1 transition-all">Edit</button>
+                          <button onClick={() => deleteDraft(post.id)} className="text-xs text-red-400 hover:text-red-300 bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 rounded-lg px-2 py-1 transition-all">Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Drafts */}
+              {drafts.filter(d => d.status === 'draft').length > 0 && (
+                <div>
+                  <p className="text-slate-500 text-xs font-medium mb-3 uppercase tracking-wide">Drafts</p>
+                  <div className="space-y-3">
+                    {drafts.filter(d => d.status === 'draft').map(post => (
+                      <div key={post.id} className="bg-[#0d1420] border border-white/8 rounded-2xl p-4 flex items-start gap-4">
+                        {post.image_url && (
+                          <img src={post.image_url} alt="" className="w-16 h-16 rounded-xl object-cover shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm line-clamp-2 mb-1">{post.message}</p>
+                          <p className="text-slate-600 text-xs">
+                            Saved {new Date(post.created_at).toLocaleString('en-NZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <span className="text-xs text-slate-500 bg-white/5 border border-white/8 rounded-lg px-2 py-1 text-center">Draft</span>
+                          <button onClick={() => loadDraft(post)} className="text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 rounded-lg px-2 py-1 transition-all">Edit</button>
+                          <button onClick={() => deleteDraft(post.id)} className="text-xs text-red-400 hover:text-red-300 bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 rounded-lg px-2 py-1 transition-all">Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
