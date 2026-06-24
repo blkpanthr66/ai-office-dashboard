@@ -12,8 +12,10 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File;
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
+    const folder = (formData.get('folder') as string) || 'social';
     const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
-    const fileName = `social/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const baseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '-').slice(0, 40);
+    const fileName = `${folder}/${baseName}-${Date.now()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { error } = await supabase.storage

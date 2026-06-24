@@ -21,6 +21,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { message, imageUrl, platforms, scheduledAt, status } = body;
 
+  if (!message?.trim()) {
+    return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+  }
+
   const { data, error } = await supabase
     .from('social_posts')
     .insert({

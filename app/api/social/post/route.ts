@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
+    if (!platforms?.length) {
+      return NextResponse.json({ error: 'At least one platform must be selected' }, { status: 400 });
+    }
+
     const results: Record<string, { success: boolean; id?: string; error?: string }> = {};
 
     if (platforms.includes('facebook')) {
@@ -73,7 +77,11 @@ async function postToFacebook(
     const data = await res.json();
 
     if (!res.ok || data.error) {
-      return { success: false, error: data.error?.message || 'Facebook API error' };
+      const fbErr = data.error;
+      const detail = fbErr
+        ? `[${fbErr.code}/${fbErr.error_subcode}] ${fbErr.type}: ${fbErr.message}`
+        : 'Facebook API error';
+      return { success: false, error: detail };
     }
 
     return { success: true, id: data.id };

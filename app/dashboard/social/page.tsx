@@ -18,7 +18,7 @@ const TONES = [
 
 type AITab = 'copy' | 'stock' | 'generate';
 type StockType = 'photos' | 'videos';
-type MainTab = 'compose' | 'auto' | 'drafts';
+type MainTab = 'compose' | 'auto' | 'drafts' | 'videos';
 
 type Post = {
   message: string;
@@ -114,7 +114,7 @@ export default function SocialPage() {
     setTestingAuto(true);
     setAutoSaveResult(null);
     try {
-      const res = await fetch('/api/social/auto-post');
+      const res = await fetch('/api/social/auto-post?force=true');
       const data = await res.json();
       if (data.success) {
         setAutoSaveResult({ success: true, message: `Test post published! Topic: "${data.topic}"` });
@@ -142,6 +142,40 @@ export default function SocialPage() {
 
   function removeTopic(t: string) {
     setAutoTopics(prev => prev.filter(x => x !== t));
+  }
+
+  // Video library
+  const [videos, setVideos] = useState<{ name: string; url: string; size?: number }[]>([]);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const videoFileRef = useRef<HTMLInputElement>(null);
+
+  async function fetchVideos() {
+    setLoadingVideos(true);
+    try {
+      const res = await fetch('/api/social/videos');
+      const data = await res.json();
+      setVideos(data.files || []);
+    } catch { /* ignore */ }
+    finally { setLoadingVideos(false); }
+  }
+
+  async function uploadVideo(file: File) {
+    setUploadingVideo(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('folder', 'social/media');
+      const res = await fetch('/api/social/upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.url) await fetchVideos();
+    } catch { /* ignore */ }
+    finally { setUploadingVideo(false); }
+  }
+
+  async function deleteVideo(name: string) {
+    await fetch('/api/social/videos', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    setVideos(prev => prev.filter(v => v.name !== name));
   }
 
   // Drafts & scheduled
@@ -447,6 +481,7 @@ export default function SocialPage() {
           { id: 'compose', label: 'Compose', icon: '✏️' },
           { id: 'auto', label: 'Auto-Post', icon: '🤖' },
           { id: 'drafts', label: 'Drafts & Scheduled', icon: '📋' },
+          { id: 'videos', label: 'Media Library', icon: '🎬' },
         ] as { id: MainTab; label: string; icon: string }[]).map(tab => (
           <button key={tab.id} onClick={() => setMainTab(tab.id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -557,7 +592,7 @@ export default function SocialPage() {
                     className={`relative w-12 h-6 rounded-full transition-colors ${autoImage ? 'bg-emerald-500' : 'bg-white/10'}`}>
                     <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${autoImage ? 'left-7' : 'left-1'}`} />
                   </button>
-                  <p className="text-slate-600 text-xs mt-2">{autoImage ? 'Stock photo included' : 'Text only'}</p>
+                  <p className="text-slate-600 text-xs mt-2">{autoImage ? 'Stock photo or video included (every 3rd post is a Reel)' : 'Text only'}</p>
                 </div>
               </div>
 
@@ -1045,6 +1080,59 @@ export default function SocialPage() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Video Library tab */}
+      {mainTab === 'videos' && (
+        <div className="space-y-5 max-w-3xl">
+          <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-white font-semibold">Media Library</h3>
+                <p className="text-slate-500 text-sm mt-0.5">Upload your own videos and images — auto-poster will use them instead of stock media</p>
+              </div>
+              <button onClick={() => { fetchVideos(); videoFileRef.current?.click(); }}
+                className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-black font-semibold text-sm px-4 py-2 rounded-xl transition-all">
+                {uploadingVideo ? 'Uploading...' : '+ Upload'}
+              </button>
+              <input ref={videoFileRef} type="file" accept="video/*,image/*" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadVideo(f); e.target.value = ''; }} />
+            </div>
+
+            {loadingVideos ? (
+              <div className="text-slate-500 text-sm py-8 text-center">Loading...</div>
+            ) : videos.length === 0 ? (
+              <div className="border-2 border-dashed border-white/10 rounded-xl p-12 text-center cursor-pointer hover:border-cyan-500/30 transition-all"
+                onClick={() => { fetchVideos(); videoFileRef.current?.click(); }}>
+                <div className="text-4xl mb-3">🎬</div>
+                <p className="text-slate-400 font-medium">No media yet</p>
+                <p className="text-slate-600 text-sm mt-1">Click to upload videos or images</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                {videos.map(v => {
+                  const isVideo = /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(v.name);
+                  return (
+                    <div key={v.name} className="bg-white/3 border border-white/8 rounded-xl overflow-hidden">
+                      {isVideo
+                        ? <video src={v.url} className="w-full aspect-video object-cover" controls muted />
+                        : <img src={v.url} className="w-full aspect-video object-cover" alt={v.name} />
+                      }
+                      <div className="p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                          <span className="text-xs">{isVideo ? '🎬' : '🖼️'}</span>
+                          <p className="text-slate-400 text-xs truncate">{v.name}</p>
+                        </div>
+                        <button onClick={() => deleteVideo(v.name)}
+                          className="text-xs text-red-400 hover:text-red-300 shrink-0">Delete</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

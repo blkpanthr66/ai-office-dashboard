@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -193,15 +193,10 @@ async function generateAndPublish() {
 export async function GET(req: NextRequest) {
   void req;
 
-  // Respond immediately so cron-job.org doesn't time out,
-  // then generate and publish the post in the background.
-  after(async () => {
-    try {
-      await generateAndPublish();
-    } catch (err) {
-      console.error('[auto-blog] background generation failed:', err);
-    }
-  });
+  // Fire and forget — respond immediately so cron-job.org doesn't time out
+  void generateAndPublish().catch(err =>
+    console.error('[auto-blog] background generation failed:', err)
+  );
 
   return NextResponse.json({ success: true, message: 'Blog generation started' });
 }
