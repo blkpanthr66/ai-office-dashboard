@@ -24,10 +24,30 @@ function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
+function ConfirmDeleteModal({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#0d1420] border border-white/10 rounded-2xl p-6 w-full max-w-sm">
+        <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+          <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        </div>
+        <h3 className="text-white font-semibold text-center mb-1">Delete Contact?</h3>
+        <p className="text-slate-400 text-sm text-center mb-1"><span className="text-white font-medium">{name}</span> will be permanently deleted.</p>
+        <p className="text-slate-600 text-xs text-center mb-6">This will also delete all their enquiries and notes. This cannot be undone.</p>
+        <div className="flex gap-3">
+          <button onClick={onCancel} className="flex-1 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 py-2.5 rounded-xl text-sm transition-colors">Cancel</button>
+          <button onClick={onConfirm} className="flex-1 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-semibold py-2.5 rounded-xl text-sm transition-colors">Yes, Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<Contact | null>(null);
   const [view, setView] = useState<'list' | 'gallery'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('view-contacts') as 'list' | 'gallery') || 'list';
@@ -49,6 +69,14 @@ export default function ContactsPage() {
       .order('created_at', { ascending: false });
     setContacts(data || []);
     setLoading(false);
+  }
+
+  async function deleteContact(contact: Contact) {
+    await supabase.from('leads').delete().eq('contact_id', contact.id);
+    await supabase.from('notes').delete().eq('contact_id', contact.id);
+    await supabase.from('contacts').delete().eq('id', contact.id);
+    setContacts(prev => prev.filter(c => c.id !== contact.id));
+    setConfirmDelete(null);
   }
 
   const filtered = contacts.filter(c =>
@@ -116,8 +144,8 @@ export default function ContactsPage() {
             const leadCount = contact.leads?.length || 0;
             const wonCount = contact.leads?.filter(l => l.status === 'won').length || 0;
             return (
-              <Link key={contact.id} href={`/dashboard/contacts/${contact.id}`}
-                className="flex items-center gap-4 bg-[#0d1420] border border-white/8 hover:border-cyan-400/25 hover:bg-[#0f1825] rounded-2xl p-5 transition-all group">
+              <div key={contact.id} className="flex items-center gap-4 bg-[#0d1420] border border-white/8 hover:border-cyan-400/25 hover:bg-[#0f1825] rounded-2xl p-5 transition-all group relative">
+              <Link href={`/dashboard/contacts/${contact.id}`} className="absolute inset-0 rounded-2xl" aria-label={contact.name} />
                 <div className={`w-11 h-11 rounded-full ${avatarColor(contact.name)} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
                   {initials(contact.name)}
                 </div>
@@ -147,8 +175,13 @@ export default function ContactsPage() {
                   <svg className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
+                  <button onClick={e => { e.preventDefault(); setConfirmDelete(contact); }}
+                    className="relative z-10 opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                    title="Delete contact">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
@@ -159,8 +192,8 @@ export default function ContactsPage() {
             const leadCount = contact.leads?.length || 0;
             const wonCount = contact.leads?.filter(l => l.status === 'won').length || 0;
             return (
-              <Link key={contact.id} href={`/dashboard/contacts/${contact.id}`}
-                className="flex flex-col bg-[#0d1420] border border-white/8 hover:border-cyan-400/25 hover:bg-[#0f1825] rounded-2xl p-5 transition-all group">
+              <div key={contact.id} className="relative flex flex-col bg-[#0d1420] border border-white/8 hover:border-cyan-400/25 hover:bg-[#0f1825] rounded-2xl p-5 transition-all group">
+              <Link href={`/dashboard/contacts/${contact.id}`} className="absolute inset-0 rounded-2xl" aria-label={contact.name} />
                 {/* Avatar + name */}
                 <div className="flex items-center gap-3 mb-4">
                   <div className={`w-12 h-12 rounded-full ${avatarColor(contact.name)} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
@@ -192,14 +225,29 @@ export default function ContactsPage() {
                       </div>
                     )}
                   </div>
-                  <span className="text-slate-700 text-xs">
-                    {new Date(contact.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-700 text-xs">
+                      {new Date(contact.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                    </span>
+                    <button onClick={e => { e.preventDefault(); setConfirmDelete(contact); }}
+                      className="relative z-10 opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                      title="Delete contact">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
+      )}
+
+      {confirmDelete && (
+        <ConfirmDeleteModal
+          name={confirmDelete.name}
+          onConfirm={() => deleteContact(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
       )}
     </div>
   );
