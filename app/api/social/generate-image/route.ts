@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       prompt: `Professional social media image for a local NZ business: ${prompt}. Clean, modern, high quality.`,
       n: 1,
       size: '1536x1024',
-      quality: 'standard',
+      quality: 'high',
     });
 
     const url = response.data?.[0]?.url;
