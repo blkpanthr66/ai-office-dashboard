@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createHmac } from 'crypto';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,11 +8,6 @@ const supabase = createClient(
 
 const PAGE_ID = process.env.FACEBOOK_PAGE_ID!;
 const PAGE_TOKEN = process.env.FACEBOOK_PAGE_ACCESS_TOKEN!;
-const APP_SECRET = process.env.META_APP_SECRET!;
-
-function appsecretProof(token: string) {
-  return createHmac('sha256', APP_SECRET).update(token).digest('hex');
-}
 
 export async function POST(req: NextRequest) {
   const { id } = await req.json();
@@ -47,7 +41,6 @@ async function postToFacebook(message: string, imageUrl?: string | null) {
     const params: Record<string, string> = {
       message,
       access_token: PAGE_TOKEN,
-      appsecret_proof: appsecretProof(PAGE_TOKEN),
     };
     let endpoint: string;
 

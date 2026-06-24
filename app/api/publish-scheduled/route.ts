@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { createHmac } from 'crypto';
-
 const PAGE_ID = process.env.FACEBOOK_PAGE_ID!;
 const PAGE_TOKEN = process.env.FACEBOOK_PAGE_ACCESS_TOKEN!;
-const APP_SECRET = process.env.META_APP_SECRET!;
-
-function appsecretProof(token: string) {
-  return createHmac('sha256', APP_SECRET).update(token).digest('hex');
-}
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -80,7 +73,6 @@ async function postToFacebook(
     const params: Record<string, string> = {
       message,
       access_token: PAGE_TOKEN,
-      appsecret_proof: appsecretProof(PAGE_TOKEN),
     };
 
     let endpoint: string;
