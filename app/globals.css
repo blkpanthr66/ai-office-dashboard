@@ -91,6 +91,16 @@ html.light-mode .backdrop-blur-xl {
 /* Drag-and-drop empty state */
 html.light-mode .border-dashed { border-color: rgba(0,0,0,0.1) !important; }
 
+/* datetime-local calendar/clock icon — make visible on dark backgrounds */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.7);
+  cursor: pointer;
+  opacity: 0.6;
+}
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* Hide scrollbar while keeping scroll functionality */
 .scrollbar-none {
   scrollbar-width: none; /* Firefox */

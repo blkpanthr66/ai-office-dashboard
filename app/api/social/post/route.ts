@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHmac } from 'crypto';
 
 const PAGE_ID = process.env.FACEBOOK_PAGE_ID!;
 const PAGE_TOKEN = process.env.FACEBOOK_PAGE_ACCESS_TOKEN!;
+const APP_SECRET = process.env.META_APP_SECRET!;
+
+function appsecretProof(token: string) {
+  return createHmac('sha256', APP_SECRET).update(token).digest('hex');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,7 +15,7 @@ export async function POST(req: NextRequest) {
     const { message, imageUrl, scheduledAt, platforms } = body as {
       message: string;
       imageUrl?: string;
-      scheduledAt?: string; // ISO string
+      scheduledAt?: string;
       platforms: string[];
     };
 
@@ -40,12 +46,12 @@ async function postToFacebook(
     const params: Record<string, string> = {
       message,
       access_token: PAGE_TOKEN,
+      appsecret_proof: appsecretProof(PAGE_TOKEN),
     };
 
     if (scheduledAt) {
       const ts = Math.floor(new Date(scheduledAt).getTime() / 1000);
       const now = Math.floor(Date.now() / 1000);
-      // Facebook requires scheduled time to be 10min–30days in future
       if (ts < now + 600 || ts > now + 30 * 24 * 3600) {
         return { success: false, error: 'Scheduled time must be 10 minutes to 30 days in the future' };
       }
@@ -54,17 +60,14 @@ async function postToFacebook(
     }
 
     if (imageUrl && isVideo(imageUrl)) {
-      // Video post
       endpoint = `https://graph.facebook.com/v25.0/${PAGE_ID}/videos`;
       params.file_url = imageUrl;
       params.description = message;
       delete params.message;
     } else if (imageUrl) {
-      // Photo post
       endpoint = `https://graph.facebook.com/v25.0/${PAGE_ID}/photos`;
       params.url = imageUrl;
     } else {
-      // Text post
       endpoint = `https://graph.facebook.com/v25.0/${PAGE_ID}/feed`;
     }
 
