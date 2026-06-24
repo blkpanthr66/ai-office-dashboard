@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const PLATFORMS = [
   { id: 'facebook', label: 'Facebook', color: 'bg-blue-600', icon: (
@@ -18,12 +18,25 @@ const TONES = [
 
 type AITab = 'copy' | 'stock' | 'generate';
 type StockType = 'photos' | 'videos';
+type MainTab = 'compose' | 'auto';
 
 type Post = {
   message: string;
   imageUrl: string;
   scheduledAt: string;
   platforms: string[];
+};
+
+const DAYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+const OPTIMAL_TIMES = ['08:00','09:00','12:00','13:00','17:00','19:00'];
+
+type AutoSettings = {
+  social_auto_enabled: string;
+  social_auto_topics: string;
+  social_auto_days: string;
+  social_auto_tone: string;
+  social_auto_image: string;
+  social_auto_last_posted: string;
 };
 
 export default function SocialPage() {
@@ -39,6 +52,97 @@ export default function SocialPage() {
   const [result, setResult] = useState<{ success?: boolean; message?: string } | null>(null);
   const [history, setHistory] = useState<Post[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Main tab
+  const [mainTab, setMainTab] = useState<MainTab>('compose');
+
+  // Auto-post settings
+  const [autoEnabled, setAutoEnabled] = useState(false);
+  const [autoTopics, setAutoTopics] = useState<string[]>(['AI receptionist for NZ tradies', 'How local SEO helps NZ businesses', 'Missed calls costing your business money']);
+  const [newTopic, setNewTopic] = useState('');
+  const [autoDays, setAutoDays] = useState<string[]>(['tuesday', 'thursday']);
+  const [autoTone, setAutoTone] = useState('engaging');
+  const [autoImage, setAutoImage] = useState(true);
+  const [autoLastPosted, setAutoLastPosted] = useState('');
+  const [savingAuto, setSavingAuto] = useState(false);
+  const [autoSaveResult, setAutoSaveResult] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [loadingAuto, setLoadingAuto] = useState(true);
+  const [testingAuto, setTestingAuto] = useState(false);
+
+  useEffect(() => { fetchAutoSettings(); }, []);
+
+  async function fetchAutoSettings() {
+    try {
+      const res = await fetch('/api/social/auto-settings');
+      const data: AutoSettings = await res.json();
+      if (data.social_auto_enabled) setAutoEnabled(data.social_auto_enabled === 'true');
+      if (data.social_auto_topics) setAutoTopics(JSON.parse(data.social_auto_topics));
+      if (data.social_auto_days) setAutoDays(JSON.parse(data.social_auto_days));
+      if (data.social_auto_tone) setAutoTone(data.social_auto_tone);
+      if (data.social_auto_image) setAutoImage(data.social_auto_image === 'true');
+      if (data.social_auto_last_posted) setAutoLastPosted(data.social_auto_last_posted);
+    } catch { /* use defaults */ }
+    finally { setLoadingAuto(false); }
+  }
+
+  async function saveAutoSettings() {
+    setSavingAuto(true);
+    setAutoSaveResult(null);
+    try {
+      const res = await fetch('/api/social/auto-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          social_auto_enabled: String(autoEnabled),
+          social_auto_topics: JSON.stringify(autoTopics),
+          social_auto_days: JSON.stringify(autoDays),
+          social_auto_tone: autoTone,
+          social_auto_image: String(autoImage),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) setAutoSaveResult({ success: true, message: 'Settings saved' });
+      else setAutoSaveResult({ success: false, message: data.error || 'Save failed' });
+    } catch {
+      setAutoSaveResult({ success: false, message: 'Save failed' });
+    } finally {
+      setSavingAuto(false);
+    }
+  }
+
+  async function testAutoPost() {
+    setTestingAuto(true);
+    setAutoSaveResult(null);
+    try {
+      const res = await fetch('/api/social/auto-post');
+      const data = await res.json();
+      if (data.success) {
+        setAutoSaveResult({ success: true, message: `Test post published! Topic: "${data.topic}"` });
+        setAutoLastPosted(new Date().toISOString().slice(0, 10));
+      } else {
+        setAutoSaveResult({ success: false, message: data.skipped || data.error || 'Test failed' });
+      }
+    } catch {
+      setAutoSaveResult({ success: false, message: 'Test failed' });
+    } finally {
+      setTestingAuto(false);
+    }
+  }
+
+  function toggleDay(day: string) {
+    setAutoDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+  }
+
+  function addTopic() {
+    if (newTopic.trim() && !autoTopics.includes(newTopic.trim())) {
+      setAutoTopics(prev => [...prev, newTopic.trim()]);
+      setNewTopic('');
+    }
+  }
+
+  function removeTopic(t: string) {
+    setAutoTopics(prev => prev.filter(x => x !== t));
+  }
 
   // AI panel state
   const [aiTab, setAiTab] = useState<AITab>('copy');
@@ -230,6 +334,151 @@ export default function SocialPage() {
         </button>
       </div>
 
+      {/* Main tabs */}
+      <div className="flex gap-1 bg-white/5 border border-white/8 rounded-xl p-1 w-fit mb-6">
+        {([
+          { id: 'compose', label: 'Compose', icon: '✏️' },
+          { id: 'auto', label: 'Auto-Post', icon: '🤖' },
+        ] as { id: MainTab; label: string; icon: string }[]).map(tab => (
+          <button key={tab.id} onClick={() => setMainTab(tab.id)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              mainTab === tab.id ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20' : 'text-slate-500 hover:text-slate-300'
+            }`}>
+            <span>{tab.icon}</span>{tab.label}
+            {tab.id === 'auto' && autoEnabled && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Auto-Post Panel */}
+      {mainTab === 'auto' && (
+        <div className="space-y-5 max-w-2xl">
+          {loadingAuto ? (
+            <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-8 animate-pulse h-40" />
+          ) : (
+            <>
+              {/* Enable toggle */}
+              <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-white font-medium text-sm">Auto-posting</p>
+                  <p className="text-slate-500 text-xs mt-0.5">Automatically generate and post content on your schedule</p>
+                  {autoLastPosted && (
+                    <p className="text-slate-600 text-xs mt-1">Last posted: {autoLastPosted}</p>
+                  )}
+                </div>
+                <button onClick={() => setAutoEnabled(v => !v)}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${autoEnabled ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${autoEnabled ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+
+              {/* Topics */}
+              <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-5">
+                <p className="text-white font-medium text-sm mb-1">Post Topics</p>
+                <p className="text-slate-500 text-xs mb-4">Claude will rotate through these topics when generating posts</p>
+                <div className="space-y-2 mb-3">
+                  {autoTopics.map((t, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-white/3 border border-white/5 rounded-xl px-3 py-2">
+                      <span className="w-5 h-5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs flex items-center justify-center shrink-0">{i + 1}</span>
+                      <span className="text-slate-300 text-sm flex-1">{t}</span>
+                      <button onClick={() => removeTopic(t)} className="text-slate-600 hover:text-red-400 transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input type="text" placeholder="Add a topic..." value={newTopic}
+                    onChange={e => setNewTopic(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addTopic()}
+                    className="flex-1 bg-[#080c14] border border-white/8 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-cyan-400/50" />
+                  <button onClick={addTopic} disabled={!newTopic.trim()}
+                    className="px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-400 rounded-xl text-sm transition-all disabled:opacity-40">
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Schedule days */}
+              <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-5">
+                <p className="text-white font-medium text-sm mb-1">Posting Days</p>
+                <p className="text-slate-500 text-xs mb-4">Posts go out at optimal times on selected days (9am–1pm NZST)</p>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS.map(day => (
+                    <button key={day} onClick={() => toggleDay(day)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium capitalize border transition-all ${
+                        autoDays.includes(day)
+                          ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
+                          : 'bg-white/5 border-white/8 text-slate-500 hover:border-white/15'
+                      }`}>
+                      {day.slice(0, 3).charAt(0).toUpperCase() + day.slice(1, 3)}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-4 bg-white/3 border border-white/5 rounded-xl p-3">
+                  <p className="text-slate-500 text-xs font-medium mb-2">Optimal posting times (auto-selected)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['9:00am', '12:00pm', '1:00pm'].map(t => (
+                      <span key={t} className="text-xs text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-2 py-1">{t} NZST</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tone & image */}
+              <div className="bg-[#0d1420] border border-white/8 rounded-2xl p-5 grid grid-cols-2 gap-5">
+                <div>
+                  <p className="text-white font-medium text-sm mb-3">Copy Tone</p>
+                  <div className="space-y-2">
+                    {TONES.map(t => (
+                      <button key={t.id} onClick={() => setAutoTone(t.id)}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-sm border transition-all ${
+                          autoTone === t.id ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300' : 'bg-white/3 border-white/5 text-slate-400 hover:border-white/15'
+                        }`}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-white font-medium text-sm mb-3">Include Image</p>
+                  <p className="text-slate-500 text-xs mb-3">Auto-fetch a relevant stock photo from Pexels with each post</p>
+                  <button onClick={() => setAutoImage(v => !v)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${autoImage ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                    <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${autoImage ? 'left-7' : 'left-1'}`} />
+                  </button>
+                  <p className="text-slate-600 text-xs mt-2">{autoImage ? 'Stock photo included' : 'Text only'}</p>
+                </div>
+              </div>
+
+              {/* Save & Test */}
+              <div className="flex gap-3">
+                <button onClick={saveAutoSettings} disabled={savingAuto}
+                  className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-40">
+                  {savingAuto ? 'Saving...' : 'Save Settings'}
+                </button>
+                <button onClick={testAutoPost} disabled={testingAuto}
+                  className="px-5 py-3 bg-white/5 hover:bg-white/10 border border-white/8 text-slate-300 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+                  title="Trigger one auto-post right now to test">
+                  {testingAuto ? 'Posting...' : 'Test Now'}
+                </button>
+              </div>
+
+              {autoSaveResult && (
+                <div className={`rounded-xl p-3 text-sm text-center border ${
+                  autoSaveResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'
+                }`}>
+                  {autoSaveResult.success ? '✓ ' : '✗ '}{autoSaveResult.message}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {mainTab === 'compose' && <>
       {/* AI Assistant Panel */}
       {aiOpen && (
         <div className="bg-[#0d1420] border border-purple-500/20 rounded-2xl p-5 mb-6">
@@ -563,7 +812,7 @@ export default function SocialPage() {
       </div>
 
       {/* History */}
-      {history.length > 0 && (
+      {mainTab === 'compose' && history.length > 0 && (
         <div className="mt-8">
           <h2 className="text-white font-medium text-sm mb-4">Posted this session</h2>
           <div className="space-y-3">
@@ -586,6 +835,7 @@ export default function SocialPage() {
           </div>
         </div>
       )}
+      </>}
     </div>
   );
 }
