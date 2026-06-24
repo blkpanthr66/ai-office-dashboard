@@ -53,8 +53,14 @@ async function postToFacebook(
       params.published = 'false';
     }
 
-    if (imageUrl) {
-      // Post with photo
+    if (imageUrl && isVideo(imageUrl)) {
+      // Video post
+      endpoint = `https://graph.facebook.com/v25.0/${PAGE_ID}/videos`;
+      params.file_url = imageUrl;
+      params.description = message;
+      delete params.message;
+    } else if (imageUrl) {
+      // Photo post
       endpoint = `https://graph.facebook.com/v25.0/${PAGE_ID}/photos`;
       params.url = imageUrl;
     } else {
@@ -78,4 +84,8 @@ async function postToFacebook(
   } catch (err) {
     return { success: false, error: String(err) };
   }
+}
+
+function isVideo(url: string) {
+  return /\.(mp4|mov|avi|mkv|webm|m4v)(\?|$)/i.test(url);
 }
