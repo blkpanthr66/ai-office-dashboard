@@ -91,7 +91,26 @@ Respond in this exact JSON format only:
   const text = message.content[0].type === 'text' ? message.content[0].text : '';
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('AI response was not valid JSON');
-  return JSON.parse(jsonMatch[0]);
+
+  // Try direct parse first, then fall back to field extraction
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    // Extract fields individually to handle unescaped content in the HTML
+    const titleMatch = jsonMatch[0].match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const excerptMatch = jsonMatch[0].match(/"excerpt"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const contentMatch = jsonMatch[0].match(/"content"\s*:\s*"([\s\S]*?)"\s*\}/);
+
+    if (!titleMatch || !excerptMatch || !contentMatch) {
+      throw new Error('Could not extract fields from AI response');
+    }
+
+    return {
+      title: titleMatch[1],
+      excerpt: excerptMatch[1],
+      content: contentMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'),
+    };
+  }
 }
 
 async function fetchUnsplashImage(query: string): Promise<{ url: string; credit: string; creditUrl: string } | null> {
