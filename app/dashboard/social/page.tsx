@@ -219,6 +219,30 @@ export default function SocialPage() {
     setDrafts(prev => prev.filter(d => d.id !== id));
   }
 
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  async function publishNow(post: any) {
+    setPublishingId(post.id);
+    try {
+      const res = await fetch('/api/social/publish-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: post.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDrafts(prev => prev.filter(d => d.id !== post.id));
+        setHistory(prev => [{ message: post.message, imageUrl: post.image_url, scheduledAt: '', platforms: post.platforms }, ...prev]);
+      } else {
+        setResult({ success: false, message: data.error || 'Publish failed' });
+      }
+    } catch {
+      setResult({ success: false, message: 'Publish failed' });
+    } finally {
+      setPublishingId(null);
+    }
+  }
+
   function loadDraft(post: any) {
     setMessage(post.message);
     if (post.image_url) { setImageUrl(post.image_url); setImagePreview(post.image_url); setMediaType('image'); }
@@ -980,6 +1004,10 @@ export default function SocialPage() {
                         </div>
                         <div className="flex flex-col gap-2 shrink-0">
                           <span className="text-xs text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-2 py-1 text-center">Scheduled</span>
+                          <button onClick={() => publishNow(post)} disabled={publishingId === post.id}
+                            className="text-xs text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg px-2 py-1 transition-all disabled:opacity-40">
+                            {publishingId === post.id ? '...' : 'Post Now'}
+                          </button>
                           <button onClick={() => loadDraft(post)} className="text-xs text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/8 rounded-lg px-2 py-1 transition-all">Edit</button>
                           <button onClick={() => deleteDraft(post.id)} className="text-xs text-red-400 hover:text-red-300 bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 rounded-lg px-2 py-1 transition-all">Delete</button>
                         </div>
