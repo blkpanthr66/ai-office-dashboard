@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -135,65 +135,54 @@ async function uploadCoverImage(imageUrl: string, slug: string): Promise<string 
   }
 }
 
-export async function GET(req: NextRequest) {
-  // Allow cron-job.org or Vercel cron — open for dashboard use
-  const authHeader = req.headers.get('authorization');
-  const cronHeader = req.headers.get('x-vercel-cron');
-  const validSecret = process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`;
-  const validVercel = cronHeader === '1';
-  // Allow direct calls from the dashboard (no auth required for internal use)
-  const _ = validSecret || validVercel; // keep for cron validation only
+async function generateAndPublish() {
+  const recentPosts = await getRecentPosts();
+  const recentTitles = recentPosts.map(p => p.title);
+  const isRegional = Math.random() < 0.5;
+  const region = isRegional ? pickRegion(recentTitles) : null;
+  const category = pickCategory(recentPosts);
 
-  try {
-    // 1. Pick topic type, region (if regional), and category
-    const recentPosts = await getRecentPosts();
-    const recentTitles = recentPosts.map(p => p.title);
-    const isRegional = Math.random() < 0.5;
-    const region = isRegional ? pickRegion(recentTitles) : null;
-    const category = pickCategory(recentPosts);
+  const { title, excerpt, content } = await generatePost(region, category, recentTitles);
+  const slug = slugify(title);
 
-    // 2. Generate post with Claude
-    const { title, excerpt, content } = await generatePost(region, category, recentTitles);
-    const slug = slugify(title);
+  const unsplashQuery = region ? `${region} New Zealand business` : `New Zealand business technology AI`;
+  const image = await fetchUnsplashImage(unsplashQuery);
 
-    // 3. Fetch cover image from Unsplash
-    const unsplashQuery = region ? `${region} New Zealand business` : `New Zealand business technology AI`;
-    const image = await fetchUnsplashImage(unsplashQuery);
+  let coverImage: string | null = null;
+  if (image) coverImage = await uploadCoverImage(image.url, slug);
 
-    // 4. Upload cover image to Supabase storage
-    let coverImage: string | null = null;
-    if (image) {
-      coverImage = await uploadCoverImage(image.url, slug);
-    }
-
-    // 5. Publish to Supabase
-    const now = new Date().toISOString();
-    const { data, error } = await supabaseAdmin
-      .from('blog_posts')
-      .insert({
-        title,
-        slug,
-        excerpt,
-        content,
-        category,
-        author: 'PinPoint Local AI',
-        cover_image: coverImage,
-        status: 'published',
-        published_at: now,
-        created_at: now,
-        updated_at: now,
-      })
-      .select('id, slug')
-      .single();
-
-    if (error) throw new Error(error.message);
-
-    return NextResponse.json({
-      success: true,
-      post: { id: data.id, slug: data.slug, title, category, cover_image: coverImage },
+  const now = new Date().toISOString();
+  const { error } = await supabaseAdmin
+    .from('blog_posts')
+    .insert({
+      title,
+      slug,
+      excerpt,
+      content,
+      category,
+      author: 'PinPoint Local AI',
+      cover_image: coverImage,
+      status: 'published',
+      published_at: now,
+      created_at: now,
+      updated_at: now,
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+
+  if (error) throw new Error(error.message);
+}
+
+export async function GET(req: NextRequest) {
+  void req;
+
+  // Respond immediately so cron-job.org doesn't time out,
+  // then generate and publish the post in the background.
+  after(async () => {
+    try {
+      await generateAndPublish();
+    } catch (err) {
+      console.error('[auto-blog] background generation failed:', err);
+    }
+  });
+
+  return NextResponse.json({ success: true, message: 'Blog generation started' });
 }
