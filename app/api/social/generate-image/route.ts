@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       quality: 'standard',
     });
 
-    const url = response.data[0]?.url;
+    const url = response.data?.[0]?.url;
     if (!url) return NextResponse.json({ error: 'No image returned' }, { status: 500 });
 
     return NextResponse.json({ url });
