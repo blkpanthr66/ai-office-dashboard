@@ -103,6 +103,7 @@ function FeaturedPostPanel({ posts }: { posts: Post[] }) {
   const [search, setSearch] = useState('');
   const [showPicker, setShowPicker] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const load = useCallback(async () => {
     const res = await fetch('/api/featured-post');
@@ -115,19 +116,33 @@ function FeaturedPostPanel({ posts }: { posts: Post[] }) {
   async function setMode(mode: 'manual' | 'auto') {
     if (!featured) return;
     setSaving(true);
-    await fetch('/api/featured-post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
-    setFeatured(f => f ? { ...f, mode } : f);
+    setSaveError('');
+    try {
+      const res = await fetch('/api/featured-post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      setFeatured(f => f ? { ...f, mode } : f);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed');
+    }
     setSaving(false);
   }
 
   async function pickPost(post: Post) {
     setSaving(true);
-    await fetch('/api/featured-post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: post.slug, mode: 'manual' }) });
-    setFeatured({ slug: post.slug, mode: 'manual', post: { id: post.id, title: post.title, slug: post.slug, cover_image: post.cover_image, category: post.category, published_at: post.published_at || '' } });
+    setSaveError('');
+    try {
+      const res = await fetch('/api/featured-post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: post.slug, mode: 'manual' }) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      setFeatured({ slug: post.slug, mode: 'manual', post: { id: post.id, title: post.title, slug: post.slug, cover_image: post.cover_image, category: post.category, published_at: post.published_at || '' } });
+      setShowPicker(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed');
+    }
     setSaving(false);
-    setShowPicker(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
   }
 
   const published = posts.filter(p => p.status === 'published');
@@ -142,8 +157,9 @@ function FeaturedPostPanel({ posts }: { posts: Post[] }) {
           <h2 className="text-white font-semibold text-sm">Featured Post</h2>
           <p className="text-slate-500 text-xs mt-0.5">Shown as the hero post on your blog page</p>
         </div>
-        {saved && <span className="text-emerald-400 text-xs font-medium">Saved</span>}
+        {saved && <span className="text-emerald-400 text-xs font-medium">✓ Saved</span>}
         {saving && <div className="w-4 h-4 border-2 border-slate-600 border-t-cyan-400 rounded-full animate-spin" />}
+        {saveError && <span className="text-red-400 text-xs">{saveError}</span>}
       </div>
 
       {/* Current featured post */}
