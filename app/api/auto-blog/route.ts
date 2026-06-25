@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -190,13 +190,15 @@ async function generateAndPublish() {
   if (error) throw new Error(error.message);
 }
 
+export const maxDuration = 60;
+
 export async function GET(req: NextRequest) {
   void req;
 
-  // Fire and forget — respond immediately so cron-job.org doesn't time out
-  void generateAndPublish().catch(err =>
+  // after() keeps the Vercel function alive after the response is sent
+  after(generateAndPublish().catch(err =>
     console.error('[auto-blog] background generation failed:', err)
-  );
+  ));
 
   return NextResponse.json({ success: true, message: 'Blog generation started' });
 }
