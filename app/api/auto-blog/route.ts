@@ -164,7 +164,16 @@ async function generateAndPublish() {
   const { title, excerpt, content } = await generatePost(region, category, recentTitles);
   const slug = slugify(title);
 
-  const unsplashQuery = region ? `${region} New Zealand business` : `New Zealand business technology AI`;
+  const categoryImageQueries: Record<string, string> = {
+    'AI & Business Growth':  'artificial intelligence business office',
+    'AI & Automation':       'business automation technology laptop',
+    'Local SEO':             'small business owner smartphone google',
+    'AI Receptionist':       'business phone call office reception',
+    'Digital Marketing':     'digital marketing social media business',
+    'Websites':              'web design laptop modern office',
+    'Business Technology':   'business technology team office',
+  };
+  const unsplashQuery = categoryImageQueries[category] ?? 'small business owner technology';
   const image = await fetchUnsplashImage(unsplashQuery);
 
   let coverImage: string | null = null;
