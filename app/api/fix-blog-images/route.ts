@@ -56,12 +56,6 @@ async function uploadImage(imageUrl: string, slug: string): Promise<string | nul
 }
 
 export async function GET(req: NextRequest) {
-  // Simple secret check so this can't be triggered by anyone
-  const secret = new URL(req.url).searchParams.get('secret');
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { data: posts, error } = await supabaseAdmin
     .from('blog_posts')
     .select('id, slug, category')
