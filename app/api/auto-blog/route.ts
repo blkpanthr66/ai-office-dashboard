@@ -13,12 +13,72 @@ const NZ_REGIONS = [
 const CATEGORIES = [
   'AI & Business Growth',
   'AI & Automation',
+  'AI Tools & Platforms',
+  'Ecommerce & Online Sales',
+  'Website Design & Trends',
   'Local SEO',
   'AI Receptionist',
   'Digital Marketing',
-  'Websites',
   'Business Technology',
+  'AI in Everyday Business',
 ];
+
+// Topic prompts give the AI a specific angle to write about per category
+const CATEGORY_TOPICS: Record<string, string[]> = {
+  'AI & Business Growth': [
+    'how AI is changing the way small businesses compete in 2026',
+    'practical ways AI is helping NZ business owners save time and win more customers',
+    'the biggest AI trends shaping small business in 2026',
+  ],
+  'AI & Automation': [
+    'automating repetitive tasks so business owners can focus on growth',
+    'how workflow automation is replacing manual admin for small businesses',
+    'tools that automate lead follow-up, bookings, and customer communication',
+  ],
+  'AI Tools & Platforms': [
+    'a plain-English overview of the latest AI tools worth knowing about (ChatGPT, Claude, Gemini, Copilot)',
+    'how the big LLM platforms differ and which is best for small business use cases',
+    'new AI features in everyday tools like Google, Microsoft 365, and social media platforms',
+    'what the latest model releases mean for NZ business owners',
+  ],
+  'Ecommerce & Online Sales': [
+    'what is new in ecommerce and how NZ businesses can sell more online in 2026',
+    'AI-powered tools that are transforming online stores and product discovery',
+    'how small NZ retailers can compete with big brands using smart ecommerce tools',
+    'the rise of AI shopping assistants and what it means for online sellers',
+  ],
+  'Website Design & Trends': [
+    'the latest website design trends NZ businesses should know about in 2026',
+    'how AI website builders are changing what is possible for small business sites',
+    'why fast, mobile-first websites are more important than ever for local businesses',
+    'what makes a website actually convert visitors into paying customers',
+  ],
+  'Local SEO': [
+    'how to get found on Google in your local area without paying for ads',
+    'Google Business Profile tips that actually move the needle for NZ businesses',
+    'why local citations and reviews are critical for local search ranking',
+  ],
+  'AI Receptionist': [
+    'how AI phone answering is helping NZ trades and service businesses never miss a call',
+    'what happens when a small business switches to an AI receptionist',
+    'the cost of missed calls and how AI receptionists are solving it',
+  ],
+  'Digital Marketing': [
+    'social media strategies that are working for NZ small businesses in 2026',
+    'how to use AI to create better content and marketing faster',
+    'Google Ads vs organic SEO: what makes sense for a local NZ business',
+  ],
+  'Business Technology': [
+    'the tech stack a modern NZ small business should have in 2026',
+    'how cloud tools are levelling the playing field for small business owners',
+    'cybersecurity basics every small business owner needs to know',
+  ],
+  'AI in Everyday Business': [
+    'real examples of NZ business owners using AI in their day-to-day work',
+    'how to use ChatGPT or Claude to write better emails, quotes, and proposals',
+    'AI tools that save small business owners hours every week',
+  ],
+};
 
 function slugify(title: string): string {
   return title
@@ -54,6 +114,11 @@ function pickCategory(recentPosts: { category: string }[]): string {
 async function generatePost(region: string | null, category: string, recentTitles: string[]): Promise<{ title: string; excerpt: string; content: string }> {
   const recentList = recentTitles.slice(0, 10).map(t => `- ${t}`).join('\n');
 
+  const topics = CATEGORY_TOPICS[category] ?? [];
+  const topicHint = topics.length > 0
+    ? `Suggested angle for this post: "${topics[Math.floor(Math.random() * topics.length)]}"`
+    : '';
+
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 3000,
@@ -62,7 +127,7 @@ async function generatePost(region: string | null, category: string, recentTitle
       content: `You are a content writer for PinPoint Local AI, a digital growth agency based in Rotorua, New Zealand. You help local NZ businesses grow with websites, local SEO, AI receptionists, and automation.
 
 Write a complete, publish-ready blog post in the category: "${category}".
-${region ? `This post is focused on the ${region} region of New Zealand — reference ${region} naturally 2-3 times throughout.` : `This post is for a general NZ business audience — broad, practical advice about AI, technology, and business growth applicable to any NZ business.`}
+${topicHint ? `${topicHint}\n` : ''}${region ? `This post is focused on the ${region} region of New Zealand — reference ${region} naturally 2-3 times throughout.` : `This post is for a general NZ business audience — broad, practical advice about AI, technology, and business growth applicable to any NZ business.`}
 
 Do NOT write about any of these recently published topics:
 ${recentList}
@@ -157,7 +222,7 @@ async function uploadCoverImage(imageUrl: string, slug: string): Promise<string 
 async function generateAndPublish() {
   const recentPosts = await getRecentPosts();
   const recentTitles = recentPosts.map(p => p.title);
-  const isRegional = Math.random() < 0.5;
+  const isRegional = Math.random() < 0.15;
   const region = isRegional ? pickRegion(recentTitles) : null;
   const category = pickCategory(recentPosts);
 
@@ -165,13 +230,16 @@ async function generateAndPublish() {
   const slug = slugify(title);
 
   const categoryImageQueries: Record<string, string> = {
-    'AI & Business Growth':  'artificial intelligence business office',
-    'AI & Automation':       'business automation technology laptop',
-    'Local SEO':             'small business owner smartphone google',
-    'AI Receptionist':       'business phone call office reception',
-    'Digital Marketing':     'digital marketing social media business',
-    'Websites':              'web design laptop modern office',
-    'Business Technology':   'business technology team office',
+    'AI & Business Growth':       'artificial intelligence business office',
+    'AI & Automation':            'business automation technology laptop',
+    'AI Tools & Platforms':       'AI chatbot technology screen interface',
+    'Ecommerce & Online Sales':   'ecommerce online shopping technology',
+    'Website Design & Trends':    'web design laptop modern interface',
+    'Local SEO':                  'small business owner smartphone google',
+    'AI Receptionist':            'business phone call office reception',
+    'Digital Marketing':          'digital marketing social media business',
+    'Business Technology':        'business technology team office',
+    'AI in Everyday Business':    'business owner laptop AI technology office',
   };
   const unsplashQuery = categoryImageQueries[category] ?? 'small business owner technology';
   const image = await fetchUnsplashImage(unsplashQuery);
