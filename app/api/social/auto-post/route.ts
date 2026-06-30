@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
         'social_auto_tone',
         'social_auto_image',
         'social_auto_last_posted',
+        'social_auto_last_posted_index',
       ]);
 
     const settings: Record<string, string> = {};
@@ -141,61 +142,40 @@ Rules:
 
     const postText = (msg.content[0] as { text: string }).text.trim();
 
-    // Search terms that return good results on Pexels
-    const MEDIA_QUERIES = [
-      'small business owner', 'office phone call', 'team meeting',
-      'entrepreneur laptop', 'customer service', 'business growth',
-      'local business', 'tradesman working', 'professional office',
-      'business technology', 'new zealand business', 'mobile phone business',
-    ];
-    const mediaQuery = MEDIA_QUERIES[topicIndex % MEDIA_QUERIES.length];
+    // Topic-specific Pexels queries — matched to each service so the image relates to the post
+    const SERVICE_IMAGE_QUERIES: Record<string, string> = {
+      'AI receptionist': 'business phone answering service',
+      'local SEO': 'google search local business marketing',
+      'Answer Engine Optimisation': 'artificial intelligence search technology',
+      'Google Business Profile': 'google maps local business listing',
+      'one-page': 'mobile website design smartphone',
+      'digital marketing': 'digital marketing social media laptop',
+      'lead generation': 'business sales leads customer',
+      'AI tools': 'business productivity technology automation',
+    };
 
-    // Every 3rd post attempts a video Reel (downloaded to Supabase so Facebook can fetch it)
-    const useVideo = topicIndex % 3 === 2;
+    // Pick the image query based on whichever service keyword matches the current topic
+    const matchedQuery = Object.entries(SERVICE_IMAGE_QUERIES).find(([key]) =>
+      topic.toLowerCase().includes(key.toLowerCase())
+    );
+    const mediaQuery = matchedQuery ? matchedQuery[1] : 'new zealand small business owner';
+
     let mediaUrl: string | undefined;
     let mediaType: 'photo' | 'video' | undefined;
 
     if (settings.social_auto_image === 'true' && process.env.PEXELS_API_KEY) {
       try {
-        if (useVideo) {
-          // Use videos from the library if available
-          const { data: libraryFiles } = await supabase.storage
-            .from('media')
-            .list('social/media', { sortBy: { column: 'created_at', order: 'desc' } });
-          const validFiles = (libraryFiles || []).filter(f => f.name !== '.emptyFolderPlaceholder');
-          if (validFiles.length > 0) {
-            const pick = validFiles[Math.floor(Math.random() * validFiles.length)];
-            const { data: urlData } = supabase.storage.from('media').getPublicUrl(`social/media/${pick.name}`);
-            mediaUrl = urlData.publicUrl;
-            mediaType = 'video';
-          }
-        }
-
-        if (!mediaUrl) {
-          // Try library images first
-          const { data: libraryImages } = await supabase.storage
-            .from('media')
-            .list('social/media', { sortBy: { column: 'created_at', order: 'desc' } });
-          const imageFiles = (libraryImages || []).filter(f =>
-            f.name !== '.emptyFolderPlaceholder' && /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name)
-          );
-          if (imageFiles.length > 0) {
-            const pick = imageFiles[Math.floor(Math.random() * imageFiles.length)];
-            const { data: urlData } = supabase.storage.from('media').getPublicUrl(`social/media/${pick.name}`);
-            mediaUrl = urlData.publicUrl;
-            mediaType = 'photo';
-          } else {
-            // Fall back to Pexels
-            const pRes = await fetch(
-              `https://api.pexels.com/v1/search?query=${encodeURIComponent(mediaQuery)}&per_page=15&orientation=landscape`,
-              { headers: { Authorization: process.env.PEXELS_API_KEY } }
-            );
-            const pData = await pRes.json();
-            const photos = pData.photos || [];
-            const pick = photos[Math.floor(Math.random() * Math.min(photos.length, 10))];
-            if (pick?.src?.large2x) { mediaUrl = pick.src.large2x; mediaType = 'photo'; }
-          }
-        }
+        // Always use Pexels with topic-specific query so image matches post content
+        const pRes = await fetch(
+          `https://api.pexels.com/v1/search?query=${encodeURIComponent(mediaQuery)}&per_page=20&orientation=landscape`,
+          { headers: { Authorization: process.env.PEXELS_API_KEY } }
+        );
+        const pData = await pRes.json();
+        const photos = pData.photos || [];
+        // Pick from first 15 results with offset based on topicIndex for variety
+        const offset = topicIndex % Math.max(photos.length, 1);
+        const pick = photos[offset] || photos[0];
+        if (pick?.src?.large2x) { mediaUrl = pick.src.large2x; mediaType = 'photo'; }
       } catch (mediaErr) {
         console.error('[auto-post] media fetch failed:', mediaErr);
       }
