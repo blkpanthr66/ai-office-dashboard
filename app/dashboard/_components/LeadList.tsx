@@ -12,6 +12,8 @@ export type Lead = {
   ai_summary: string;
   source_page: string;
   created_at: string;
+  call_status: string | null;
+  call_attempted_at: string | null;
   contacts: { name: string; email: string } | null;
 };
 
@@ -29,6 +31,12 @@ const statusConfig: Record<string, { label: string; color: string; dot: string }
   sent:     { label: 'Sent',     color: 'text-slate-400',   dot: 'bg-slate-400' },
   rejected: { label: 'Rejected', color: 'text-red-400',     dot: 'bg-red-400' },
   won:      { label: 'Won',      color: 'text-cyan-400',    dot: 'bg-cyan-400' },
+};
+
+const callStatusConfig: Record<string, { label: string; color: string; dot: string }> = {
+  pending:  { label: 'Call Queued', color: 'text-amber-400',   dot: 'bg-amber-400' },
+  called:   { label: 'Called',      color: 'text-emerald-400', dot: 'bg-emerald-400' },
+  no_phone: { label: 'No Phone',    color: 'text-slate-500',   dot: 'bg-slate-500' },
 };
 
 function avatarColor(name: string) {
@@ -75,7 +83,7 @@ export default function LeadList({ title, description, filter, emptyMessage, sho
   async function fetchLeads() {
     const { data } = await supabase
       .from('leads')
-      .select('*, contacts(name, email)')
+      .select('*, contacts(name, email), call_status, call_attempted_at')
       .order('created_at', { ascending: false });
     setLeads((data || []).filter(filter));
     setLoading(false);
@@ -215,6 +223,14 @@ export default function LeadList({ title, description, filter, emptyMessage, sho
                     <div className={`w-1.5 h-1.5 rounded-full ${sts.dot}`} />
                     <span className={`text-xs font-medium ${sts.color}`}>{sts.label}</span>
                   </div>
+                  {lead.call_status && callStatusConfig[lead.call_status] && (
+                    <div className="flex items-center gap-1.5 hidden sm:flex">
+                      <div className={`w-1.5 h-1.5 rounded-full ${callStatusConfig[lead.call_status].dot}`} />
+                      <span className={`text-xs font-medium ${callStatusConfig[lead.call_status].color}`}>
+                        {callStatusConfig[lead.call_status].label}
+                      </span>
+                    </div>
+                  )}
                   <span className="text-slate-600 text-xs hidden lg:block">
                     {new Date(lead.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
                   </span>
