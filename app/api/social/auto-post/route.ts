@@ -163,19 +163,37 @@ Rules:
     let mediaUrl: string | undefined;
     let mediaType: 'photo' | 'video' | undefined;
 
-    if (settings.social_auto_image === 'true' && process.env.PEXELS_API_KEY) {
+    if (settings.social_auto_image === 'true') {
       try {
-        // Always use Pexels with topic-specific query so image matches post content
-        const pRes = await fetch(
-          `https://api.pexels.com/v1/search?query=${encodeURIComponent(mediaQuery)}&per_page=20&orientation=landscape`,
-          { headers: { Authorization: process.env.PEXELS_API_KEY } }
-        );
-        const pData = await pRes.json();
-        const photos = pData.photos || [];
-        // Pick from first 15 results with offset based on topicIndex for variety
-        const offset = topicIndex % Math.max(photos.length, 1);
-        const pick = photos[offset] || photos[0];
-        if (pick?.src?.large2x) { mediaUrl = pick.src.large2x; mediaType = 'photo'; }
+        // Every 3rd post: try to use a pre-made reel from the media library
+        const useVideo = topicIndex % 3 === 2;
+        if (useVideo) {
+          const { data: libraryFiles } = await supabase.storage
+            .from('media')
+            .list('social/media', { sortBy: { column: 'created_at', order: 'desc' } });
+          const videoFiles = (libraryFiles || []).filter(f =>
+            f.name !== '.emptyFolderPlaceholder' && /\.(mp4|mov|avi|webm)$/i.test(f.name)
+          );
+          if (videoFiles.length > 0) {
+            const pick = videoFiles[Math.floor(Math.random() * videoFiles.length)];
+            const { data: urlData } = supabase.storage.from('media').getPublicUrl(`social/media/${pick.name}`);
+            mediaUrl = urlData.publicUrl;
+            mediaType = 'video';
+          }
+        }
+
+        // Photo posts (or video fallback when library is empty): use Pexels with topic-specific query
+        if (!mediaUrl && process.env.PEXELS_API_KEY) {
+          const pRes = await fetch(
+            `https://api.pexels.com/v1/search?query=${encodeURIComponent(mediaQuery)}&per_page=20&orientation=landscape`,
+            { headers: { Authorization: process.env.PEXELS_API_KEY } }
+          );
+          const pData = await pRes.json();
+          const photos = pData.photos || [];
+          const offset = topicIndex % Math.max(photos.length, 1);
+          const pick = photos[offset] || photos[0];
+          if (pick?.src?.large2x) { mediaUrl = pick.src.large2x; mediaType = 'photo'; }
+        }
       } catch (mediaErr) {
         console.error('[auto-post] media fetch failed:', mediaErr);
       }

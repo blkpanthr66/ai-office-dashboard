@@ -163,14 +163,29 @@ export default function SocialPage() {
   async function uploadVideo(file: File) {
     setUploadingVideo(true);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('folder', 'social/media');
-      const res = await fetch('/api/social/upload', { method: 'POST', body: form });
-      const data = await res.json();
-      if (data.url) await fetchVideos();
-    } catch { /* ignore */ }
-    finally { setUploadingVideo(false); }
+      // Step 1: get a signed upload URL from the server (bypasses Vercel 4.5 MB body limit)
+      const urlRes = await fetch('/api/social/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name }),
+      });
+      const urlData = await urlRes.json();
+      if (!urlData.signedUrl) throw new Error(urlData.error || 'Could not get upload URL');
+
+      // Step 2: PUT the file directly to Supabase — no Vercel size limit
+      const uploadRes = await fetch(urlData.signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`);
+
+      await fetchVideos();
+    } catch (err) {
+      alert(`Video upload failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setUploadingVideo(false);
+    }
   }
 
   async function deleteVideo(name: string) {
