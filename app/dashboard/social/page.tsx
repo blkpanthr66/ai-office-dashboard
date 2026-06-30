@@ -160,6 +160,8 @@ export default function SocialPage() {
     finally { setLoadingVideos(false); }
   }
 
+  useEffect(() => { fetchVideos(); }, []);
+
   async function uploadVideo(file: File) {
     setUploadingVideo(true);
     try {
